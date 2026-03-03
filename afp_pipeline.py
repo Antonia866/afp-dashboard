@@ -12,8 +12,20 @@ SHEET_LISTA = "Hola Valores"
 SHEET_DATA  = "valores para graficos"
 
 
-def load_universe(file_path: str) -> np.ndarray:
-    hv = pd.read_excel(file_path, sheet_name=SHEET_LISTA)
+# ----------------------------
+# Helpers
+# ----------------------------
+def _read_excel(xls_source, sheet_name: str) -> pd.DataFrame:
+    """
+    xls_source puede ser:
+      - str path (local)
+      - streamlit UploadedFile (file-like)
+    """
+    return pd.read_excel(xls_source, sheet_name=sheet_name, engine="openpyxl")
+
+
+def load_universe(xls_source) -> np.ndarray:
+    hv = _read_excel(xls_source, sheet_name=SHEET_LISTA)
 
     hv["Nemo"] = hv["Nemo"].astype(str).str.upper().str.strip()
     hv["AFP"]  = hv["AFP"].astype(str).str.lower().str.strip()
@@ -23,8 +35,8 @@ def load_universe(file_path: str) -> np.ndarray:
     return universo
 
 
-def load_data(file_path: str, universo: np.ndarray) -> pd.DataFrame:
-    df = pd.read_excel(file_path, sheet_name=SHEET_DATA)
+def load_data(xls_source, universo: np.ndarray) -> pd.DataFrame:
+    df = _read_excel(xls_source, sheet_name=SHEET_DATA)
 
     df["Fecha"] = pd.to_datetime(df["Fecha"])
     df["Nemo"]  = df["Nemo"].astype(str).str.upper().str.strip()
@@ -39,17 +51,17 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     g = df.groupby("Nemo", group_keys=False)
 
-    # Core dynamics
+    # Dinámica
     df["Delta_GAP"] = g["GAP"].diff()
     df["Aceleracion"] = g["Delta_GAP"].diff()
 
-    # Rolling stats
+    # Rolling
     df["MA_3"] = g["GAP"].apply(lambda s: s.rolling(3, min_periods=3).mean())
     df["MA_6"] = g["GAP"].apply(lambda s: s.rolling(6, min_periods=6).mean())
     df["STD_6"] = g["GAP"].apply(lambda s: s.rolling(6, min_periods=6).std())
     df["Z_6"] = (df["GAP"] - df["MA_6"]) / (df["STD_6"].replace(0, np.nan))
 
-    # Historical percentile within paper
+    # Percentil histórico del GAP por papel
     df["GAP_Pctl"] = g["GAP"].apply(lambda s: s.rank(pct=True))
 
     # Lags
@@ -58,18 +70,18 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"Delta_lag{lag}"] = g["Delta_GAP"].shift(lag)
         df[f"Acc_lag{lag}"] = g["Aceleracion"].shift(lag)
 
-    # Momentum / impulse
+    # Impulso
     df["Delta_MA3"] = g["Delta_GAP"].apply(lambda s: s.rolling(3, min_periods=3).mean())
     df["Impulso"] = df["Delta_GAP"] - df["Delta_MA3"]
 
-    # Cross-sectional ranks by month
+    # Rank cross-section mensual
     df["Rank_GAP_mes"] = df.groupby("Fecha")["GAP"].rank(ascending=False, method="dense")
 
-    # "Strong expansion" within paper (used for the old T+1 idea; kept as feature)
+    # “Fuerte expansión” por papel (percentil del Δ)
     df["Delta_Pctl"] = g["Delta_GAP"].apply(lambda s: s.rank(pct=True))
     df["Fuerte_Expansion"] = df["Delta_Pctl"] >= 0.75
 
-    # Targets (next month)
+    # Targets (próximo mes)
     df["Delta_next"] = g["Delta_GAP"].shift(-1)
     df["Up_next"] = (df["Delta_next"] > 0).astype(int)
 
@@ -77,10 +89,14 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Mantiene las señales originales (Acumulacion/Arrastre/Saturacion)
+    + estado largos/cortos (Fase) + Semáforo + FlowScore_0_100
+    """
     df = df.copy()
     g = df.groupby("Nemo", group_keys=False)
 
-    # Rule-based signals (still useful as flags)
+    # Señales originales (NO se eliminan)
     df["Acumulacion"] = (df["GAP"] > 0) & (df["Delta_GAP"] > 0) & (df["Aceleracion"] > 0)
     df["Arrastre_T1"] = (g["Fuerte_Expansion"].shift(1) == True) & (df["Delta_GAP"] > 0) & (df["Aceleracion"] < 0)
     df["Saturacion"] = (df["GAP_Pctl"] >= 0.85) & (df["Delta_GAP"] < 0) & (df["Aceleracion"] < 0)
@@ -101,45 +117,36 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
         1.5*(df["Aceleracion"] < 0).astype(int)
     )
 
-    # =========================
-    # Profesional: Estado largos/cortos (reemplaza "fase")
-    # =========================
+    # Estado largos/cortos (Fase)
     def classify(row):
         gap = row.get("GAP", np.nan)
         dgap = row.get("Delta_GAP", np.nan)
         acc = row.get("Aceleracion", np.nan)
 
-        # Si faltan datos, neutral
         if pd.isna(gap) or pd.isna(dgap) or pd.isna(acc):
-            return "NEUTRAL"
+            return "HOLD"
 
-        # Largos (sobreponderación)
         if gap > 0:
             if dgap > 0 and acc > 0:
-                return "LARGOS ACELERANDO"
-            elif dgap > 0 and acc < 0:
-                return "LARGOS MODERANDO"
-            elif dgap < 0:
-                return "DESCARGANDO LARGOS"
-            else:
-                return "LARGOS ESTABLE"
+                return "BUY (fuerte)"
+            if dgap > 0 and acc < 0:
+                return "BUY (débil)"
+            if dgap < 0:
+                return "SELL"
+            return "HOLD"
 
-        # Cortos (infraponderación)
         if gap < 0:
             if dgap < 0 and acc < 0:
-                return "CORTOS ACELERANDO"
-            elif dgap > 0:
-                return "CUBRIENDO CORTOS"
-            else:
-                return "CORTOS ESTABLE"
+                return "UNDERWEIGHT (más)"
+            if dgap > 0:
+                return "BUY (cover)"
+            return "UNDERWEIGHT"
 
-        return "NEUTRAL"
+        return "HOLD"
 
     df["Fase"] = df.apply(classify, axis=1)
 
-    # =========================
-    # Score 0–100 (intensidad) por mes
-    # =========================
+    # FlowScore 0–100 por mes
     def normalize_0_100(s):
         s = s.astype(float)
         mn, mx = s.min(), s.max()
@@ -149,24 +156,27 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
 
     df["FlowScore_0_100"] = df.groupby("Fecha")["Score_AFPFlow"].transform(normalize_0_100)
 
-    # =========================
     # Semáforo
-    # =========================
     def traffic_light(estado):
-        if estado in ["LARGOS ACELERANDO", "CUBRIENDO CORTOS"]:
+        if estado in ["BUY (fuerte)", "BUY (cover)"]:
             return "🟢"
-        if estado in ["DESCARGANDO LARGOS", "CORTOS ACELERANDO"]:
+        if estado in ["SELL", "UNDERWEIGHT (más)"]:
             return "🔴"
         return "🟡"
 
     df["Semaforo"] = df["Fase"].apply(traffic_light)
+
+    # Etiquetas intuitivas (NO reemplazan columnas, solo para mostrar)
+    df["Etiqueta_Acumulacion"] = np.where(df["Acumulacion"], "Compra fuerte (AFP entrando)", "")
+    df["Etiqueta_Arrastre"] = np.where(df["Arrastre_T1"], "Compra seguidora (rebalanceo)", "")
+    df["Etiqueta_Saturacion"] = np.where(df["Saturacion"], "Salida / toma de utilidades", "")
 
     return df
 
 
 def train_predict_global(df_feat: pd.DataFrame):
     """
-    Global model:
+    Modelo global:
       - Clasificación: P(ΔGAP próximo mes > 0)
       - Regresión: ΔGAP esperado próximo mes
     """
@@ -196,7 +206,7 @@ def train_predict_global(df_feat: pd.DataFrame):
         remainder="drop"
     )
 
-    clf = Pipeline(steps=[("pre", pre), ("model", LogisticRegression(max_iter=700))])
+    clf = Pipeline(steps=[("pre", pre), ("model", LogisticRegression(max_iter=900))])
     reg = Pipeline(steps=[("pre", pre), ("model", Ridge(alpha=1.0))])
 
     tss = TimeSeriesSplit(n_splits=5)
@@ -215,7 +225,6 @@ def train_predict_global(df_feat: pd.DataFrame):
     clf.fit(X, y_cls)
     reg.fit(X, y_reg)
 
-    # In-sample probabilities/estimates (useful for charts; backtest tab uses Up_next directly)
     dfm["P_Up_next"] = clf.predict_proba(X)[:, 1]
     dfm["Delta_next_hat"] = reg.predict(X)
 
@@ -228,9 +237,75 @@ def train_predict_global(df_feat: pd.DataFrame):
     return dfm, metrics
 
 
+def add_actions(df_model: pd.DataFrame) -> pd.DataFrame:
+    """
+    Agrega recomendaciones:
+      1) Acción táctica mensual: BUY/HOLD/SELL
+      2) Acción asignación relativa: OW/NEUTRAL/UW + tilt sugerido (bps)
+    """
+    dfm = df_model.copy()
+
+    def tactical(r):
+        p = r.get("P_Up_next", np.nan)
+        fs = r.get("FlowScore_0_100", np.nan)
+        sem = r.get("Semaforo", "🟡")
+        fase = r.get("Fase", "HOLD")
+
+        # Reglas
+        if pd.notna(p) and pd.notna(fs):
+            if (p >= 0.60) and (fs >= 70) and (sem == "🟢"):
+                return "BUY", "Prob alta de expansión GAP + flujo fuerte (🟢)"
+            if (p >= 0.60) and (sem == "🟢"):
+                return "BUY (light)", "Prob alta + señal 🟢 (convicción media)"
+            if (p <= 0.40) and (sem == "🔴"):
+                return "SELL/REDUCE", "Prob baja + señal 🔴 (riesgo de salida)"
+            if (p <= 0.40):
+                return "REDUCE", "Prob baja de expansión del GAP"
+            return "HOLD", "Prob media / transición"
+        # fallback si faltara p
+        if sem == "🟢" and fs >= 70:
+            return "BUY", "Señal 🟢 + FlowScore alto"
+        if sem == "🔴":
+            return "REDUCE", "Señal 🔴"
+        return "HOLD", "Sin confirmación predictiva"
+
+    def relative(r):
+        # Tilt bps (0–200) como guía: crece con FlowScore y prob
+        fs = r.get("FlowScore_0_100", np.nan)
+        p = r.get("P_Up_next", np.nan)
+        gap = r.get("GAP", np.nan)
+        sem = r.get("Semaforo", "🟡")
+
+        # base tilt
+        if pd.isna(fs):
+            fs = 50
+        if pd.isna(p):
+            p = 0.50
+
+        tilt = 2.0*(fs - 50) + 200*(p - 0.50)  # escala simple
+        tilt = float(np.clip(tilt, -200, 200))  # bps sugeridos
+
+        if tilt >= 60 and sem == "🟢":
+            return "OVERWEIGHT", tilt, "Aumentar peso relativo (flujo favorable)"
+        if tilt <= -60 and sem == "🔴":
+            return "UNDERWEIGHT", tilt, "Reducir peso relativo (flujo desfavorable)"
+        return "NEUTRAL", tilt, "Mantener / esperar confirmación"
+
+    out_t = dfm.apply(tactical, axis=1, result_type="expand")
+    dfm["Accion_Tactica"] = out_t[0]
+    dfm["Razon_Tactica"] = out_t[1]
+
+    out_r = dfm.apply(relative, axis=1, result_type="expand")
+    dfm["Accion_Relativa"] = out_r[0]
+    dfm["Tilt_bps"] = out_r[1].astype(float)
+    dfm["Razon_Relativa"] = out_r[2]
+
+    return dfm
+
+
 def build_events(df_model: pd.DataFrame) -> pd.DataFrame:
     """
-    Eventos cuando cambia el estado (Fase) + nota ejecutiva.
+    Eventos cuando cambia el estado (Fase) + nota intuitiva.
     """
     events = []
 
@@ -251,22 +326,20 @@ def build_events(df_model: pd.DataFrame) -> pd.DataFrame:
                 p_up = r.get("P_Up_next", np.nan)
                 score = r.get("FlowScore_0_100", np.nan)
 
-                if fase == "LARGOS ACELERANDO":
-                    nota = "Entrada fuerte AFP: sobreponderación aumenta y acelera (flujo comprador)."
-                elif fase == "LARGOS MODERANDO":
-                    nota = "Sigue expansión, pero con menor impulso (posible arrastre/seguidores)."
-                elif fase == "DESCARGANDO LARGOS":
-                    nota = "Reducción de sobreponderación (rotación / toma de utilidad)."
-                elif fase == "CORTOS ACELERANDO":
+                if fase == "BUY (fuerte)":
+                    nota = "Compra fuerte AFP: GAP sube y acelera (inicio de impulso)."
+                elif fase == "BUY (débil)":
+                    nota = "Compra continúa pero pierde impulso (posible flujo seguidor)."
+                elif fase == "SELL":
+                    nota = "Venta / descarga: ΔGAP < 0 (rotación / toma de utilidad)."
+                elif fase == "UNDERWEIGHT (más)":
                     nota = "Aumenta infraponderación (flujo negativo estructural)."
-                elif fase == "CUBRIENDO CORTOS":
-                    nota = "Cubre infraponderación (potencial reversión positiva)."
-                elif fase == "LARGOS ESTABLE":
-                    nota = "Posición larga estable (sin aceleración clara)."
-                elif fase == "CORTOS ESTABLE":
-                    nota = "Posición corta estable (sin cambios relevantes)."
+                elif fase == "BUY (cover)":
+                    nota = "Cubre infraponderación (reversión potencial)."
+                elif fase == "UNDERWEIGHT":
+                    nota = "Infraponderación estable."
                 else:
-                    nota = "Fase neutral / transición."
+                    nota = "Transición / hold."
 
                 events.append({
                     "Nemo": paper,
@@ -287,18 +360,30 @@ def build_events(df_model: pd.DataFrame) -> pd.DataFrame:
     return ev
 
 
-def build_outputs(file_path: str):
-    universo = load_universe(file_path)
-    df = load_data(file_path, universo)
+def build_outputs(xls_source):
+    """
+    Output completo:
+      df_raw: señales sin modelo
+      df_model: con modelo + acciones
+      snap_last: snapshot última fecha
+      metrics
+      events
+      last_date
+    """
+    universo = load_universe(xls_source)
+    df = load_data(xls_source, universo)
     df = add_features(df)
     df = add_rules_signals(df)
+
     dfm, metrics = train_predict_global(df)
+    dfm = add_actions(dfm)
 
     last_date = dfm["Fecha"].max()
-    snap = dfm[dfm["Fecha"] == last_date].copy()
+    snap_last = dfm[dfm["Fecha"] == last_date].copy()
 
-    snap["Rank_Oportunidad"] = snap["Score_AFPFlow"].rank(ascending=False, method="dense")
-    snap["Rank_RiesgoSat"] = snap["Score_SatRisk"].rank(ascending=False, method="dense")
+    snap_last["Rank_Oportunidad"] = snap_last["Score_AFPFlow"].rank(ascending=False, method="dense")
+    snap_last["Rank_RiesgoSat"] = snap_last["Score_SatRisk"].rank(ascending=False, method="dense")
 
     events = build_events(dfm)
-    return df, dfm, snap, metrics, events
+
+    return df, dfm, snap_last, metrics, events, last_date
