@@ -10,7 +10,7 @@ st.title("AFP GAP Dashboard — Histórico + Estados (Largos/Cortos) + Semáforo
 
 file_path = st.text_input(
     "Ruta del Excel (.xlsx)",
-    value=r"C:\Users\amarti\OneDrive - SURA INVESTMENTS\AFP\IPSA Hist.xlsx"
+    value="IPSA Hist.xlsx"
 )
 
 run = st.button("Cargar y ejecutar")
@@ -272,4 +272,5 @@ with tabs[4]:
             data=dfh.to_csv(index=False).encode("utf-8-sig"),
             file_name="historico_modelado_filtrado.csv",
             mime="text/csv"
+
         )
