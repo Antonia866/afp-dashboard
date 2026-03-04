@@ -1,7 +1,7 @@
 import os
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 
@@ -26,7 +26,6 @@ if not run:
     st.info("Sube el Excel o pega ruta local, luego presiona **Cargar y ejecutar**.")
     st.stop()
 
-# Fuente
 xls_source = None
 if uploaded is not None:
     xls_source = uploaded
@@ -52,7 +51,6 @@ st.success(
     f"Filas: {metrics['rows']} | AUC: {metrics['AUC_mean']:.3f} | ACC: {metrics['ACC_mean']:.3f}"
 )
 
-# Controles históricos
 min_d, max_d = df_model["Fecha"].min(), df_model["Fecha"].max()
 default_start = max(min_d, max_d - pd.DateOffset(months=36))
 
@@ -102,43 +100,59 @@ with tabs[0]:
         fig.update_yaxes(title_text="IPSA", secondary_y=True)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No pude leer serie IPSA (hoja IPSA). Muestro solo GAP promedio.")
+        st.warning("No pude leer serie IPSA desde el Excel (hoja IPSA/alias). Mostrando solo GAP promedio.")
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=gap_avg["Fecha"], y=gap_avg["GAP_prom"], mode="lines", name="GAP promedio"))
         fig.add_hline(y=0, line_width=1)
         fig.update_layout(template="plotly_white", hovermode="x unified", title="GAP promedio histórico")
         st.plotly_chart(fig, use_container_width=True)
 
-    # ✅ NUEVO: selector de fecha para “GAP por papel” (como tu imagen)
-    st.subheader("GAP por papel (fecha seleccionable) — estilo Gap Hist")
+    st.subheader("GAP por papel (fecha seleccionable) + Promedio histórico")
 
     available_dates = sorted(dfh["Fecha"].dropna().unique())
-    # default: última fecha (Hola Valores I2 si calza)
-    default_idx = max(0, len(available_dates) - 1)
+    default_idx = len(available_dates) - 1
     if last_date in available_dates:
         default_idx = available_dates.index(last_date)
 
     sel_date = st.selectbox(
         "Fecha a visualizar (fin de mes)",
         options=available_dates,
-        index=default_idx,
+        index=max(0, default_idx),
         format_func=lambda x: pd.to_datetime(x).strftime("%Y-%m-%d")
     )
 
-    snap_date = dfh[dfh["Fecha"] == pd.to_datetime(sel_date)].copy()
-    snap_date = snap_date[["Nemo", "GAP"]].dropna().sort_values("GAP", ascending=False)
+    snap_date = dfh[dfh["Fecha"] == pd.to_datetime(sel_date)][["Nemo", "GAP"]].dropna().copy()
+    snap_date = snap_date.rename(columns={"GAP": "GAP_Fecha"})
+    hist_avg = dfh.groupby("Nemo", as_index=False)["GAP"].mean().rename(columns={"GAP": "GAP_Prom_Hist"})
+
+    comp = pd.merge(snap_date, hist_avg, on="Nemo", how="left")
+    comp["Dif_vs_Prom"] = comp["GAP_Fecha"] - comp["GAP_Prom_Hist"]
+    comp = comp.sort_values("GAP_Fecha", ascending=False)
+
+    long_ = comp.melt(
+        id_vars=["Nemo", "Dif_vs_Prom"],
+        value_vars=["GAP_Fecha", "GAP_Prom_Hist"],
+        var_name="Serie",
+        value_name="GAP"
+    )
+    long_["Serie"] = long_["Serie"].map({
+        "GAP_Fecha": f"GAP {pd.to_datetime(sel_date).date()}",
+        "GAP_Prom_Hist": "Promedio histórico (rango)"
+    })
 
     fig_bar = px.bar(
-        snap_date,
+        long_,
         x="Nemo",
         y="GAP",
-        title=f"GAP por papel — {pd.to_datetime(sel_date).date()}",
+        color="Serie",
+        barmode="group",
+        title=f"GAP por papel vs Promedio histórico — {pd.to_datetime(sel_date).date()}",
+        hover_data={"Dif_vs_Prom": ":.4f"}
     )
-    fig_bar.update_layout(template="plotly_white")
     fig_bar.add_hline(y=0, line_width=1)
+    fig_bar.update_layout(template="plotly_white")
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # (se mantiene) bandas p25–p75 + selección
     st.subheader("Universo sin spaghetti: bandas p25–p75 + tickers seleccionados")
     dist = dfh.groupby("Fecha")["GAP"].quantile([0.25, 0.5, 0.75]).unstack().reset_index()
     dist.columns = ["Fecha", "p25", "p50", "p75"]
@@ -160,7 +174,7 @@ with tabs[0]:
     st.plotly_chart(fig2, use_container_width=True)
 
 # ----------------------------
-# TAB 1: Snapshot (Qué hacer)
+# TAB 1
 # ----------------------------
 with tabs[1]:
     st.subheader(f"Snapshot — Última fecha: {last_date.date()}")
@@ -177,23 +191,22 @@ with tabs[1]:
     show = [c for c in show if c in snap_last.columns]
 
     order = snap_last.copy()
-    order["__sort"] = order["Recomendacion_Timing"].map({
+    order["__sort"] = order.get("Recomendacion_Timing", pd.Series(["MANTENER"]*len(order))).map({
         "COMPRAR en T": 0,
         "COMPRAR / MANTENER": 1,
         "MANTENER": 2,
         "REDUCIR (light)": 3,
         "VENDER / REDUCIR": 4
     }).fillna(9)
-    order = order.sort_values(["__sort", "Semaforo", "Delta_GAP"], ascending=[True, True, False]).drop(columns=["__sort"])
-
-    # formatea probabilidad si existe
-    if "Prob_Compra_AFP_ProxMes" in order.columns:
-        order["Prob_Compra_AFP_ProxMes"] = order["Prob_Compra_AFP_ProxMes"].astype(float)
+    if "Delta_GAP" in order.columns:
+        order = order.sort_values(["__sort", "Semaforo", "Delta_GAP"], ascending=[True, True, False]).drop(columns=["__sort"])
+    else:
+        order = order.sort_values(["__sort", "Semaforo"], ascending=[True, True]).drop(columns=["__sort"])
 
     st.dataframe(order[show], use_container_width=True, height=650)
 
 # ----------------------------
-# TAB 2: Ranking última fecha
+# TAB 2 (ranking robusto)
 # ----------------------------
 with tabs[2]:
     st.subheader("Ranking — Última fecha")
@@ -211,10 +224,10 @@ with tabs[2]:
 
     with left:
         st.markdown("**Top oportunidades**")
-        if "FlowScore_0_100" in snap_last.columns:
-            df_rank = snap_last.sort_values(["FlowScore_0_100", "Prob_Compra_AFP_ProxMes", "Delta_GAP"], ascending=False)
-        else:
-            df_rank = snap_last.sort_values(["Prob_Compra_AFP_ProxMes", "Delta_GAP", "GAP"], ascending=False)
+        sort_cols = [c for c in ["FlowScore_0_100", "Prob_Compra_AFP_ProxMes", "Delta_GAP"] if c in snap_last.columns]
+        if not sort_cols:
+            sort_cols = [c for c in ["Delta_GAP", "GAP"] if c in snap_last.columns] or ["Nemo"]
+        df_rank = snap_last.sort_values(sort_cols, ascending=False)
         st.dataframe(df_rank.head(20)[cols], use_container_width=True, height=520)
 
     with right:
@@ -222,11 +235,14 @@ with tabs[2]:
         if "Score_SatRisk" in snap_last.columns:
             df_risk = snap_last.sort_values(["Score_SatRisk", "Delta_GAP"], ascending=[False, True])
         else:
-            df_risk = snap_last.sort_values(["Delta_GAP", "GAP"], ascending=True)
+            if "Delta_GAP" in snap_last.columns:
+                df_risk = snap_last.sort_values(["Delta_GAP", "GAP"], ascending=[True, True])
+            else:
+                df_risk = snap_last.copy()
         st.dataframe(df_risk.head(20)[cols], use_container_width=True, height=520)
 
 # ----------------------------
-# TAB 3: Detalle por papel + eventos (igual)
+# TAB 3
 # ----------------------------
 with tabs[3]:
     st.subheader("Detalle por papel + eventos")
@@ -253,14 +269,15 @@ with tabs[3]:
                       title=f"{paper} | GAP + MA3")
     st.plotly_chart(fig, use_container_width=True)
 
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(x=d["Fecha"], y=d["Delta_GAP"], mode="lines", name="ΔGAP"))
-    fig2.add_trace(go.Scatter(x=d["Fecha"], y=d["Aceleracion"], mode="lines", name="Aceleración"))
-    fig2.add_trace(go.Scatter(x=d["Fecha"], y=d["Impulso"], mode="lines", name="Impulso"))
-    fig2.add_hline(y=0, line_width=1)
-    fig2.update_layout(template="plotly_white", hovermode="x unified",
-                       title=f"{paper} | Flujo / Aceleración / Impulso")
-    st.plotly_chart(fig2, use_container_width=True)
+    if {"Delta_GAP", "Aceleracion", "Impulso"}.issubset(set(d.columns)):
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(x=d["Fecha"], y=d["Delta_GAP"], mode="lines", name="ΔGAP"))
+        fig2.add_trace(go.Scatter(x=d["Fecha"], y=d["Aceleracion"], mode="lines", name="Aceleración"))
+        fig2.add_trace(go.Scatter(x=d["Fecha"], y=d["Impulso"], mode="lines", name="Impulso"))
+        fig2.add_hline(y=0, line_width=1)
+        fig2.update_layout(template="plotly_white", hovermode="x unified",
+                           title=f"{paper} | Flujo / Aceleración / Impulso")
+        st.plotly_chart(fig2, use_container_width=True)
 
     if "P_Up_next" in d.columns:
         fig3 = go.Figure()
@@ -274,10 +291,10 @@ with tabs[3]:
     st.dataframe(pe, use_container_width=True, height=260)
 
 # ----------------------------
-# TAB 4: Heatmap
+# TAB 4
 # ----------------------------
 with tabs[4]:
-    st.subheader("Heatmap — GAP / ΔGAP (más legible)")
+    st.subheader("Heatmap — GAP / ΔGAP")
 
     metric = st.selectbox("Métrica", ["GAP", "Delta_GAP"], index=0)
 
