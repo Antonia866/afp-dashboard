@@ -46,22 +46,16 @@ def _pick_sheet(available: list[str], want: str, aliases: list[str]) -> Optional
     return None
 
 
-def _read_excel(xls_source, sheet_name: str) -> pd.DataFrame:
-    return pd.read_excel(xls_source, sheet_name=sheet_name, engine="openpyxl")
+def _read_excel(xls_source, sheet_name: str, header=0) -> pd.DataFrame:
+    return pd.read_excel(xls_source, sheet_name=sheet_name, engine="openpyxl", header=header)
 
 
 # ----------------------------
 # Última fecha: Hola Valores!I2
 # ----------------------------
 def _find_last_date_override_from_I2(xls_source, sheet_name: str) -> Optional[pd.Timestamp]:
-    """
-    Lee última fecha desde Hola Valores!I2
-      - Fila 2  -> index 1
-      - Columna I -> index 8
-    Se normaliza a fin de mes.
-    """
     try:
-        raw = pd.read_excel(xls_source, sheet_name=sheet_name, header=None, engine="openpyxl")
+        raw = _read_excel(xls_source, sheet_name=sheet_name, header=None)
         v = raw.iat[1, 8]  # I2
         dt = pd.to_datetime(v, errors="coerce", dayfirst=True)
         if pd.notna(dt):
@@ -113,7 +107,7 @@ def load_data(xls_source, universo: np.ndarray, meta: dict) -> pd.DataFrame:
     sh_data = _pick_sheet(
         sheets,
         SHEET_DATA,
-        aliases=["valores para graficos", "valores_para_graficos", "data", "datos"]
+        aliases=["valores para graficos", "valores_para_graficos", "data", "datos", "valores para gráficos"]
     )
     if sh_data is None:
         raise ValueError(f"No encuentro la hoja '{SHEET_DATA}'. Hojas disponibles: {sheets}")
@@ -152,40 +146,129 @@ def load_data(xls_source, universo: np.ndarray, meta: dict) -> pd.DataFrame:
     return df
 
 
+# ----------------------------
+# IPSA loader (ARREGLADO/ROBUSTO)
+# ----------------------------
+def _infer_date_col(df: pd.DataFrame) -> Optional[str]:
+    # candidato por nombre
+    for cand in ["Fecha", "fecha", "Date", "date", "FECHA"]:
+        if cand in df.columns:
+            return cand
+
+    # inferencia: columna con mejor parseo a datetime
+    best_col, best_ratio = None, 0.0
+    for c in df.columns[:10]:  # no hace falta revisar 200 columnas
+        parsed = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
+        ratio = parsed.notna().mean()
+        if ratio > best_ratio and ratio >= 0.5:
+            best_col, best_ratio = c, ratio
+    return best_col
+
+
+def _infer_value_col(df: pd.DataFrame, date_col: str) -> Optional[str]:
+    # candidato por nombre
+    for cand in ["IPSA", "ipsa", "Close", "close", "Valor", "valor", "Index", "index", "Price", "price", "Nivel", "nivel"]:
+        if cand in df.columns and cand != date_col:
+            return cand
+
+    # inferencia: columna numérica con más datos
+    best_col, best_cnt = None, -1
+    for c in df.columns:
+        if c == date_col:
+            continue
+        s = pd.to_numeric(df[c], errors="coerce")
+        cnt = int(s.notna().sum())
+        if cnt > best_cnt and cnt >= 10:
+            best_col, best_cnt = c, cnt
+    return best_col
+
+
 def load_ipsa_series(xls_source, meta: dict) -> Optional[pd.DataFrame]:
     sheets = meta["sheets"]
-    sh_ipsa = _pick_sheet(sheets, SHEET_IPSA, aliases=["ipsa", "index", "indice", "IPSA Hist", "IPSA_hist"])
+
+    # 1) intenta por nombre esperado/alias
+    sh_ipsa = _pick_sheet(
+        sheets,
+        SHEET_IPSA,
+        aliases=[
+            "IPSA Hist", "IPSA HIST", "IPSA_hist", "IPSA HISTÓRICO", "IPSA historico",
+            "Indice IPSA", "Índice IPSA", "indice", "índice", "index"
+        ]
+    )
+
+    # 2) si no encontró, busca cualquier hoja que contenga "ipsa"
     if sh_ipsa is None:
+        for s in sheets:
+            if "ipsa" in s.lower():
+                sh_ipsa = s
+                break
+
+    # 3) si existe hoja IPSA, la parsea robusto
+    if sh_ipsa is not None:
+        try:
+            ips = _read_excel(xls_source, sheet_name=sh_ipsa)
+            if ips is None or ips.empty:
+                return None
+
+            date_col = _infer_date_col(ips)
+            if date_col is None:
+                return None
+
+            value_col = _infer_value_col(ips, date_col)
+            if value_col is None:
+                return None
+
+            out = ips[[date_col, value_col]].copy()
+            out.columns = ["Fecha", "IPSA"]
+            out["Fecha"] = pd.to_datetime(out["Fecha"], errors="coerce", dayfirst=True) + pd.offsets.MonthEnd(0)
+            out["IPSA"]  = pd.to_numeric(out["IPSA"], errors="coerce")
+            out = out.dropna(subset=["Fecha", "IPSA"]).sort_values("Fecha").reset_index(drop=True)
+            if out.empty:
+                return None
+            return out
+        except Exception:
+            pass
+
+    # 4) fallback: IPSA puede venir como columna en "valores para graficos"
+    try:
+        sh_data = _pick_sheet(
+            sheets,
+            SHEET_DATA,
+            aliases=["valores para graficos", "valores_para_graficos", "data", "datos", "valores para gráficos"]
+        )
+        if sh_data is None:
+            return None
+
+        d = _read_excel(xls_source, sheet_name=sh_data)
+        if "Fecha" not in d.columns:
+            for cand in ["fecha", "Date", "date"]:
+                if cand in d.columns:
+                    d = d.rename(columns={cand: "Fecha"})
+                    break
+        if "Fecha" not in d.columns:
+            return None
+
+        # busca columna IPSA dentro de esta hoja
+        val_col = None
+        for c in d.columns:
+            cl = str(c).lower()
+            if "ipsa" == cl or "ipsa" in cl:
+                val_col = c
+                break
+        if val_col is None:
+            return None
+
+        out = d[["Fecha", val_col]].copy()
+        out.columns = ["Fecha", "IPSA"]
+        out["Fecha"] = pd.to_datetime(out["Fecha"], errors="coerce", dayfirst=True) + pd.offsets.MonthEnd(0)
+        out["IPSA"]  = pd.to_numeric(out["IPSA"], errors="coerce")
+        out = out.dropna(subset=["Fecha", "IPSA"]).groupby("Fecha", as_index=False)["IPSA"].mean()
+        out = out.sort_values("Fecha").reset_index(drop=True)
+        if out.empty:
+            return None
+        return out
+    except Exception:
         return None
-
-    ips = _read_excel(xls_source, sheet_name=sh_ipsa)
-    if ips.empty:
-        return None
-
-    date_col = None
-    for cand in ["Fecha", "fecha", "Date", "date"]:
-        if cand in ips.columns:
-            date_col = cand
-            break
-    if date_col is None:
-        date_col = ips.columns[0]
-
-    value_col = None
-    for cand in ["IPSA", "ipsa", "Close", "close", "Valor", "valor", "Index", "index", "Price", "price"]:
-        if cand in ips.columns and cand != date_col:
-            value_col = cand
-            break
-    if value_col is None and len(ips.columns) >= 2:
-        value_col = [c for c in ips.columns if c != date_col][0]
-    if value_col is None:
-        return None
-
-    out = ips[[date_col, value_col]].copy()
-    out.columns = ["Fecha", "IPSA"]
-    out["Fecha"] = pd.to_datetime(out["Fecha"], errors="coerce", dayfirst=True) + pd.offsets.MonthEnd(0)
-    out["IPSA"] = pd.to_numeric(out["IPSA"], errors="coerce")
-    out = out.dropna(subset=["Fecha", "IPSA"]).sort_values("Fecha").reset_index(drop=True)
-    return out
 
 
 # ----------------------------
@@ -211,14 +294,11 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         df[f"Acc_lag{lag}"] = g["Aceleracion"].shift(lag)
 
     df["Delta_MA3"] = g["Delta_GAP"].apply(lambda s: s.rolling(3, min_periods=3).mean())
-    # Impulso = flujo vs su promedio reciente
     df["Impulso"] = df["Delta_GAP"] - df["Delta_MA3"]
 
     df["Rank_GAP_mes"] = df.groupby("Fecha")["GAP"].rank(ascending=False, method="dense")
-
     df["Delta_Pctl"] = g["Delta_GAP"].apply(lambda s: s.rank(pct=True))
 
-    # Targets next month
     df["Delta_next"] = g["Delta_GAP"].shift(-1)
     df["Up_next"] = (df["Delta_next"] > 0).astype(int)
 
@@ -229,11 +309,6 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     g = df.groupby("Nemo", group_keys=False)
 
-    # Señales internas (las dejamos)
-    df["Acumulacion"] = (df["GAP"] > 0) & (df["Delta_GAP"] > 0) & (df["Aceleracion"] > 0)
-    df["Arrastre_T1"] = (g["Delta_Pctl"].shift(1) >= 0.75) & (df["Delta_GAP"] > 0) & (df["Aceleracion"] < 0)
-    df["Saturacion"] = (df["GAP_Pctl"] >= 0.85) & (df["Delta_GAP"] < 0) & (df["Aceleracion"] < 0)
-
     df["Score_AFPFlow"] = (
         1.5*(df["GAP"] > 0).astype(int) +
         2.0*(df["Delta_GAP"] > 0).astype(int) +
@@ -242,43 +317,6 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
         1.0*(df["Impulso"] > 0).astype(int)
     )
 
-    df["Score_SatRisk"] = (
-        2.0*(df["GAP_Pctl"] >= 0.85).astype(int) +
-        1.5*(df["Z_6"] >= 1.0).astype(int) +
-        2.0*(df["Delta_GAP"] < 0).astype(int) +
-        1.5*(df["Aceleracion"] < 0).astype(int)
-    )
-
-    # Fase de mesa
-    def classify(row):
-        gap = row.get("GAP", np.nan)
-        dgap = row.get("Delta_GAP", np.nan)
-        acc = row.get("Aceleracion", np.nan)
-
-        if pd.isna(gap) or pd.isna(dgap) or pd.isna(acc):
-            return "HOLD"
-
-        if gap > 0:
-            if dgap > 0 and acc > 0:
-                return "BUY (fuerte)"
-            if dgap > 0 and acc < 0:
-                return "BUY (débil)"
-            if dgap < 0:
-                return "SELL"
-            return "HOLD"
-
-        if gap < 0:
-            if dgap < 0 and acc < 0:
-                return "UNDERWEIGHT (más)"
-            if dgap > 0:
-                return "BUY (cover)"
-            return "UNDERWEIGHT"
-
-        return "HOLD"
-
-    df["Fase"] = df.apply(classify, axis=1)
-
-    # FlowScore 0–100 por mes
     def normalize_0_100(s):
         s = s.astype(float)
         mn, mx = s.min(), s.max()
@@ -288,19 +326,30 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
 
     df["FlowScore_0_100"] = df.groupby("Fecha")["Score_AFPFlow"].transform(normalize_0_100)
 
-    def traffic_light(estado):
-        if estado in ["BUY (fuerte)", "BUY (cover)"]:
+    def fase(row):
+        gap, d, a = row["GAP"], row["Delta_GAP"], row["Aceleracion"]
+        if pd.isna(gap) or pd.isna(d) or pd.isna(a):
+            return "HOLD"
+        if gap > 0 and d > 0 and a > 0:
+            return "BUY (fuerte)"
+        if gap > 0 and d > 0 and a < 0:
+            return "BUY (débil)"
+        if d < 0:
+            return "SELL"
+        return "HOLD"
+
+    df["Fase"] = df.apply(fase, axis=1)
+
+    def semaforo(row):
+        if row["Fase"] in ["BUY (fuerte)"]:
             return "🟢"
-        if estado in ["SELL", "UNDERWEIGHT (más)"]:
+        if row["Fase"] in ["SELL"]:
             return "🔴"
         return "🟡"
 
-    df["Semaforo"] = df["Fase"].apply(traffic_light)
+    df["Semaforo"] = df.apply(semaforo, axis=1)
 
-    # ----------------------------
-    # NUEVO: Compra fuerte / Venta fuerte institucional
-    # (sin usar la palabra acumulación)
-    # ----------------------------
+    # Compra/Venta fuerte (institucional) usando percentiles de Delta
     df["Compra_Fuerte"] = (df["Delta_Pctl"] >= 0.85) & (df["Delta_GAP"] > 0) & (df["Aceleracion"] > 0) & (df["Impulso"] > 0)
     df["Venta_Fuerte"]  = (df["Delta_Pctl"] <= 0.15) & (df["Delta_GAP"] < 0) & (df["Aceleracion"] < 0) & (df["Impulso"] < 0)
 
@@ -308,7 +357,7 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df["Compra_Fuerte"], "CompraVenta_Fuerte"] = "Compra fuerte"
     df.loc[df["Venta_Fuerte"],  "CompraVenta_Fuerte"] = "Venta fuerte"
 
-    # Flujo AFP (activas/seguidoras)
+    # Flujo AFP activas/seguidoras (heurística)
     df["Flujo_AFP"] = "Sin señal clara"
     df.loc[(df["Delta_GAP"] > 0) & (df["Aceleracion"] > 0), "Flujo_AFP"] = "Entrada activas"
     df.loc[(df["Delta_GAP"] > 0) & (df["Aceleracion"] < 0) & (g["Delta_Pctl"].shift(1) >= 0.75), "Flujo_AFP"] = "Entrada seguidoras"
@@ -398,7 +447,7 @@ def add_actions(df_model: pd.DataFrame) -> pd.DataFrame:
                 return "REDUCE"
             return "HOLD"
 
-        if sem == "🟢" and (pd.isna(fs) or fs >= 70):
+        if sem == "🟢":
             return "BUY"
         if sem == "🔴":
             return "REDUCE"
@@ -437,10 +486,9 @@ def add_actions(df_model: pd.DataFrame) -> pd.DataFrame:
     out_r = dfm.apply(relative, axis=1, result_type="expand")
     dfm["Accion_Relativa"] = out_r[0]
     dfm["Tilt_bps"] = out_r[1].astype(float)
-
     dfm["Recomendacion_Timing"] = dfm.apply(timing_trade, axis=1)
 
-    # ✅ etiqueta amigable para el usuario (probabilidad de compra AFP próximo mes)
+    # ✅ para evitar KeyError siempre
     dfm["Prob_Compra_AFP_ProxMes"] = dfm["P_Up_next"]
 
     return dfm
@@ -467,7 +515,7 @@ def build_events(df_model: pd.DataFrame) -> pd.DataFrame:
                     "Aceleracion": r.get("Aceleracion", np.nan),
                     "Impulso": r.get("Impulso", np.nan),
                     "CompraVenta_Fuerte": r.get("CompraVenta_Fuerte", "Neutral"),
-                    "P_Up_next": r.get("P_Up_next", np.nan),
+                    "Prob_Compra_AFP_ProxMes": r.get("Prob_Compra_AFP_ProxMes", np.nan),
                 })
                 prev = fase
 
@@ -484,9 +532,9 @@ def build_outputs(xls_source):
     dfm, metrics = train_predict_global(df)
     dfm = add_actions(dfm)
 
+    # ✅ IPSA robusto + fallback
     df_ipsa = load_ipsa_series(xls_source, meta)
 
-    # Última fecha: Hola Valores!I2 (match exacto o por año-mes)
     last_date = dfm["Fecha"].max()
     if last_date_override is not None:
         if (dfm["Fecha"] == last_date_override).any():
