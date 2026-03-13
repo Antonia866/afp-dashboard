@@ -55,6 +55,8 @@ def _read_excel(xls_source, sheet_name: str) -> pd.DataFrame:
 def _find_last_date_override_from_I2(xls_source, sheet_name: str) -> Optional[pd.Timestamp]:
     try:
         raw = pd.read_excel(xls_source, sheet_name=sheet_name, header=None, engine="openpyxl")
+        if raw.shape[0] < 2 or raw.shape[1] < 9:
+            return None
         v = raw.iat[1, 8]  # I2
         dt = pd.to_datetime(v, errors="coerce", dayfirst=True)
         if pd.notna(dt):
@@ -66,16 +68,6 @@ def _find_last_date_override_from_I2(xls_source, sheet_name: str) -> Optional[pd
 
 # =========================================================
 # Carga hoja Hola Valores
-# A: codigo
-# B: fecha
-# C: nemo
-# D: peso cartera AFP
-# E: peso IPSA
-# F: gap
-# G: si AFP tiene o no
-# H: si IPSA tiene o no
-# I: ultima fecha
-# J: primera fecha
 # =========================================================
 def load_hola_valores(xls_source) -> Tuple[pd.DataFrame, Optional[pd.Timestamp], Optional[pd.Timestamp], dict]:
     sheets = _excel_sheet_names(xls_source)
@@ -120,16 +112,25 @@ def load_hola_valores(xls_source) -> Tuple[pd.DataFrame, Optional[pd.Timestamp],
     df["TieneAFP"] = df["TieneAFP"].apply(norm_flag)
     df["TieneIPSA"] = df["TieneIPSA"].apply(norm_flag)
 
-    primera_fecha = pd.to_datetime(df["PrimeraFecha"], errors="coerce", dayfirst=True).dropna()
-    primera_fecha = (primera_fecha.iloc[0] + pd.offsets.MonthEnd(0)) if len(primera_fecha) else None
+    primera_fecha_series = pd.to_datetime(df["PrimeraFecha"], errors="coerce", dayfirst=True).dropna()
+    primera_fecha = (primera_fecha_series.iloc[0] + pd.offsets.MonthEnd(0)) if len(primera_fecha_series) else None
 
     df = df.dropna(subset=["Fecha", "Nemo", "Gap"]).copy()
+
+    if df.empty:
+        raise ValueError("La hoja 'Hola Valores' no tiene filas válidas después de leer Fecha, Nemo y Gap.")
 
     if primera_fecha is not None:
         df = df[df["Fecha"] >= primera_fecha].copy()
 
     if last_date_override is not None:
         df = df[df["Fecha"] <= last_date_override].copy()
+
+    if df.empty:
+        raise ValueError(
+            "Después de aplicar PrimeraFecha / ÚltimaFecha (I2), la base quedó vacía. "
+            "Revisa Hola Valores!I2, J y la columna Fecha."
+        )
 
     df = df.sort_values(["Nemo", "Fecha"]).reset_index(drop=True)
 
@@ -202,7 +203,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =========================================================
-# Señales amigables
+# Señales
 # =========================================================
 def _class_movimiento(delta_gap: float, umbral: float = 0.0) -> str:
     if pd.isna(delta_gap):
@@ -276,21 +277,12 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
     delta_prev = g["Delta_Gap"].shift(1)
 
     df["Flujo_AFP"] = "Manteniendo"
-    df.loc[
-        (df["Delta_Gap"] > 0) & (df["Delta_Gap"] >= delta_prev.fillna(-999)),
-        "Flujo_AFP"
-    ] = "Entrada activas"
-
+    df.loc[(df["Delta_Gap"] > 0) & (df["Delta_Gap"] >= delta_prev.fillna(-999)), "Flujo_AFP"] = "Entrada activas"
     df.loc[
         (df["Delta_Gap"] > 0) & (df["Delta_Gap"] < delta_prev.fillna(999)) & (g["Delta_Pctl"].shift(1) >= 0.75),
         "Flujo_AFP"
     ] = "Entrada seguidoras"
-
-    df.loc[
-        (df["Delta_Gap"] < 0) & (df["Delta_Gap"] <= delta_prev.fillna(999)),
-        "Flujo_AFP"
-    ] = "Salida activas"
-
+    df.loc[(df["Delta_Gap"] < 0) & (df["Delta_Gap"] <= delta_prev.fillna(999)), "Flujo_AFP"] = "Salida activas"
     df.loc[
         (df["Delta_Gap"] < 0) & (df["Delta_Gap"] > delta_prev.fillna(-999)) & (delta_prev < 0),
         "Flujo_AFP"
@@ -316,7 +308,6 @@ def add_rules_signals(df: pd.DataFrame) -> pd.DataFrame:
         return "🟡"
 
     df["Semaforo"] = df["Senal"].apply(semaforo)
-
     return df
 
 
@@ -336,6 +327,9 @@ def train_predict_global(df_feat: pd.DataFrame):
     feature_cols_num = [c for c in feature_cols_num if c in dfm.columns]
 
     dfm = dfm.dropna(subset=feature_cols_num + ["Up_next", "Delta_next"])
+    if dfm.empty:
+        raise ValueError("No quedaron filas suficientes para entrenar el modelo después de construir features.")
+
     dfm = dfm.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
 
     X = dfm[["Nemo"] + feature_cols_num]
@@ -595,6 +589,9 @@ def build_outputs(xls_source):
                 last_date = dfm.loc[ym, "Fecha"].max()
 
     snap_last = dfm[dfm["Fecha"] == last_date].copy()
+    if snap_last.empty:
+        raise ValueError("No se pudo construir el snapshot de la última fecha. Revisa I2 y la columna Fecha.")
+
     snap_last["Movimiento"] = snap_last["Delta_Gap"].apply(_class_movimiento)
     snap_last["Posicion"] = snap_last["Gap"].apply(_class_posicion)
 
