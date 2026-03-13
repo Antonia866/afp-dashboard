@@ -1,11 +1,15 @@
-import os
-import traceback
+import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
-import streamlit as st
+from typing import Optional, Tuple
 
-from afp_pipeline import build_outputs
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.linear_model import LogisticRegression, Ridge
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
+
 
 st.set_page_config(
     page_title="AFP GAP Dashboard",
@@ -671,3 +675,4 @@ with tabs[6]:
     st.dataframe(appendix["acciones"], use_container_width=True, height=360)
     st.dataframe(appendix["metricas"], use_container_width=True, height=260)
     st.dataframe(appendix["rangos"], use_container_width=True, height=220)
+
