@@ -4,8 +4,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 
-# IMPORTANTE:
-# Debe ser el PRIMER comando de Streamlit en la app
 st.set_page_config(
     page_title="AFP GAP Dashboard",
     page_icon="📊",
@@ -13,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-from afp_pipeline import build_outputs
+from afp_pipeline_listo import build_outputs
 
 # =========================================================
 # ESTILO VISUAL
@@ -88,7 +86,7 @@ hr.soft {
 
 st.markdown('<div class="main-title">AFP GAP Dashboard</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub-title">Flujos AFP, GAP vs IPSA, señales, probabilidad de compra y ranking institucional.</div>',
+    '<div class="sub-title">Flujos AFP, GAP vs IPSA, señales, probabilidad de compra, activas vs seguidoras y ranking institucional.</div>',
     unsafe_allow_html=True
 )
 
@@ -211,7 +209,7 @@ def cached_build(xls_source):
     return build_outputs(xls_source)
 
 if not run:
-    st.info("Sube el Excel o pega la ruta local, luego presiona Cargar y ejecutar.")
+    st.info("Sube el Excel AFP/Hola Valores o pega la ruta local. El IPSA se toma desde la misma hoja si existe, o desde un archivo local de apoyo si está disponible.")
     st.stop()
 
 xls_source = None
@@ -234,26 +232,22 @@ else:
 # =========================================================
 # CARGA
 # =========================================================
-try:
-    with st.spinner("Procesando datos..."):
-        (
-            df_raw,
-            df_model,
-            snap_last,
-            metrics,
-            events,
-            last_date,
-            df_ipsa,
-            top_compras,
-            top_ventas,
-            ranking_entrada,
-            ranking_salida,
-            appendix,
-            primera_fecha,
-        ) = cached_build(xls_source)
-except Exception as e:
-    st.exception(e)
-    st.stop()
+with st.spinner("Procesando datos..."):
+    (
+        df_raw,
+        df_model,
+        snap_last,
+        metrics,
+        events,
+        last_date,
+        df_ipsa,
+        top_compras,
+        top_ventas,
+        ranking_entrada,
+        ranking_salida,
+        appendix,
+        primera_fecha,
+    ) = cached_build(xls_source)
 
 st.success(
     f"OK | Última fecha tomada desde Hola Valores!I2: {last_date.date()} | "
@@ -265,7 +259,7 @@ st.success(
 # =========================================================
 # KPIs
 # =========================================================
-k1, k2, k3, k4, k5 = st.columns(5)
+k1, k2, k3, k4, k5, k6 = st.columns(6)
 
 with k1:
     metric_box("Papeles", f"{len(snap_last):,.0f}", "universo último mes")
@@ -277,6 +271,11 @@ with k4:
     metric_box("Ventas fuertes", f"{int((snap_last['CompraVenta_Fuerte'] == 'Venta fuerte').sum())}", "señales fuertes")
 with k5:
     metric_box("Flow Rank promedio", f"{snap_last['AFP_Flow_Rank'].mean():.1f}", "ranking institucional")
+with k6:
+    if "Prob_Seguimiento_T1" in snap_last.columns:
+        metric_box("Seguimiento T+1", fmt_pct(snap_last["Prob_Seguimiento_T1"].mean()), "seguidoras probables")
+    else:
+        metric_box("Seguimiento T+1", "N/D", "seguidoras probables")
 
 # =========================================================
 # CONTROLES
@@ -317,6 +316,7 @@ d1 = pd.to_datetime(date_range[0])
 d2 = pd.to_datetime(date_range[1])
 
 dfh = df_model[(df_model["Fecha"] >= d1) & (df_model["Fecha"] <= d2)].copy()
+snap_date = df_model[df_model["Fecha"] == pd.to_datetime(sel_date)].copy()
 gap_vs_hist = build_gap_vs_hist(df_model, sel_date)
 
 # =========================================================
@@ -413,7 +413,7 @@ with tabs[0]:
         st.markdown("#### Resumen ejecutivo del mes")
         top_signal = snap_last[[
             "Nemo", "Senal", "Prob_Compra_AFP_ProxMes",
-            "Prob_Entrada_AFP", "Prob_Salida_AFP", "Gap", "Delta_Gap"
+            "Prob_Entrada_AFP", "Prob_Salida_AFP", "Prob_Seguimiento_T1", "Gap", "Delta_Gap"
         ]].copy()
 
         top_signal = top_signal.sort_values(
@@ -428,6 +428,7 @@ with tabs[0]:
                     "Prob_Compra_AFP_ProxMes": "{:.2f}%",
                     "Prob_Entrada_AFP": "{:.2f}%",
                     "Prob_Salida_AFP": "{:.2f}%",
+                    "Prob_Seguimiento_T1": "{:.2f}%",
                     "Gap": "{:.2%}",
                     "Delta_Gap": "{:.2%}",
                 }
@@ -509,7 +510,7 @@ with tabs[2]:
         st.markdown("#### Mayor chance de entrada")
         cols_in = [
             "Nemo", "Semaforo", "Senal", "Flujo_AFP",
-            "Prob_Compra_AFP_ProxMes", "Prob_Entrada_AFP",
+            "Prob_Compra_AFP_ProxMes", "Prob_Entrada_AFP", "Prob_Seguimiento_T1",
             "AFP_Flow_Rank", "Gap", "Delta_Gap", "Accion_Tactica"
         ]
         cols_in = [c for c in cols_in if c in ranking_entrada.columns]
@@ -520,6 +521,7 @@ with tabs[2]:
                 {
                     "Prob_Compra_AFP_ProxMes": "{:.2f}%",
                     "Prob_Entrada_AFP": "{:.2f}%",
+                    "Prob_Seguimiento_T1": "{:.2f}%",
                     "AFP_Flow_Rank": "{:.1f}",
                     "Gap": "{:.2%}",
                     "Delta_Gap": "{:.2%}",
@@ -543,6 +545,7 @@ with tabs[2]:
                 ranking_salida.head(25)[cols_out],
                 {
                     "Prob_Salida_AFP": "{:.2f}%",
+                    "Prob_Seguimiento_T1": "{:.2f}%",
                     "Gap": "{:.2%}",
                     "Delta_Gap": "{:.2%}",
                 }
@@ -563,7 +566,7 @@ with tabs[3]:
         st.markdown("#### Top compras AFP")
         cols_buy = [
             "Nemo", "Semaforo", "Senal", "Flujo_AFP",
-            "Prob_Compra_AFP_ProxMes", "Prob_Entrada_AFP",
+            "Prob_Compra_AFP_ProxMes", "Prob_Entrada_AFP", "Prob_Seguimiento_T1",
             "AFP_Flow_Rank", "Gap", "Delta_Gap", "Recomendacion_Timing"
         ]
         cols_buy = [c for c in cols_buy if c in top_compras.columns]
@@ -574,6 +577,7 @@ with tabs[3]:
                 {
                     "Prob_Compra_AFP_ProxMes": "{:.2f}%",
                     "Prob_Entrada_AFP": "{:.2f}%",
+                    "Prob_Seguimiento_T1": "{:.2f}%",
                     "AFP_Flow_Rank": "{:.1f}",
                     "Gap": "{:.2%}",
                     "Delta_Gap": "{:.2%}",
@@ -597,6 +601,7 @@ with tabs[3]:
                 top_ventas[cols_sell],
                 {
                     "Prob_Salida_AFP": "{:.2f}%",
+                    "Prob_Seguimiento_T1": "{:.2f}%",
                     "Gap": "{:.2%}",
                     "Delta_Gap": "{:.2%}",
                 }
