@@ -4,14 +4,16 @@ import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 
-from afp_pipeline import build_outputs
-
+# IMPORTANTE:
+# Debe ser el PRIMER comando de Streamlit en la app
 st.set_page_config(
     page_title="AFP GAP Dashboard",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+from afp_pipeline import build_outputs
 
 # =========================================================
 # ESTILO VISUAL
@@ -232,22 +234,26 @@ else:
 # =========================================================
 # CARGA
 # =========================================================
-with st.spinner("Procesando datos..."):
-    (
-        df_raw,
-        df_model,
-        snap_last,
-        metrics,
-        events,
-        last_date,
-        df_ipsa,
-        top_compras,
-        top_ventas,
-        ranking_entrada,
-        ranking_salida,
-        appendix,
-        primera_fecha,
-    ) = cached_build(xls_source)
+try:
+    with st.spinner("Procesando datos..."):
+        (
+            df_raw,
+            df_model,
+            snap_last,
+            metrics,
+            events,
+            last_date,
+            df_ipsa,
+            top_compras,
+            top_ventas,
+            ranking_entrada,
+            ranking_salida,
+            appendix,
+            primera_fecha,
+        ) = cached_build(xls_source)
+except Exception as e:
+    st.exception(e)
+    st.stop()
 
 st.success(
     f"OK | Última fecha tomada desde Hola Valores!I2: {last_date.date()} | "
@@ -311,7 +317,6 @@ d1 = pd.to_datetime(date_range[0])
 d2 = pd.to_datetime(date_range[1])
 
 dfh = df_model[(df_model["Fecha"] >= d1) & (df_model["Fecha"] <= d2)].copy()
-snap_date = df_model[df_model["Fecha"] == pd.to_datetime(sel_date)].copy()
 gap_vs_hist = build_gap_vs_hist(df_model, sel_date)
 
 # =========================================================
