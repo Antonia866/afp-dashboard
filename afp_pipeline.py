@@ -221,12 +221,16 @@ def train_predict_global(df_feat: pd.DataFrame):
     ]
     feature_cols_num = [c for c in feature_cols_num if c in dfm.columns]
 
-    dfm = dfm.dropna(subset=feature_cols_num + ["Up_next", "Delta_next"]).copy()
+    train_df = dfm.dropna(subset=feature_cols_num + ["Up_next", "Delta_next"]).copy()
+    if train_df.empty:
+        raise ValueError("No quedaron filas suficientes para entrenar el modelo después de construir features.")
+
+    train_df = train_df.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
     dfm = dfm.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
 
-    X = dfm[["Nemo"] + feature_cols_num]
-    y_cls = dfm["Up_next"].astype(int)
-    y_reg = dfm["Delta_next"].astype(float)
+    X_train = train_df[["Nemo"] + feature_cols_num]
+    y_cls = train_df["Up_next"].astype(int)
+    y_reg = train_df["Delta_next"].astype(float)
 
     pre = ColumnTransformer(
         transformers=[
@@ -242,9 +246,9 @@ def train_predict_global(df_feat: pd.DataFrame):
     tss = TimeSeriesSplit(n_splits=5)
     aucs, accs = [], []
 
-    for tr_idx, te_idx in tss.split(X, y_cls):
-        clf.fit(X.iloc[tr_idx], y_cls.iloc[tr_idx])
-        proba = clf.predict_proba(X.iloc[te_idx])[:, 1]
+    for tr_idx, te_idx in tss.split(X_train, y_cls):
+        clf.fit(X_train.iloc[tr_idx], y_cls.iloc[tr_idx])
+        proba = clf.predict_proba(X_train.iloc[te_idx])[:, 1]
         pred = (proba >= 0.5).astype(int)
         try:
             aucs.append(roc_auc_score(y_cls.iloc[te_idx], proba))
@@ -252,16 +256,21 @@ def train_predict_global(df_feat: pd.DataFrame):
             pass
         accs.append(accuracy_score(y_cls.iloc[te_idx], pred))
 
-    clf.fit(X, y_cls)
-    reg.fit(X, y_reg)
+    clf.fit(X_train, y_cls)
+    reg.fit(X_train, y_reg)
 
-    dfm["P_Up_next"] = clf.predict_proba(X)[:, 1]
-    dfm["Delta_next_hat"] = reg.predict(X)
+    pred_mask = dfm[["Nemo"] + feature_cols_num].notna().all(axis=1)
+    dfm["P_Up_next"] = np.nan
+    dfm["Delta_next_hat"] = np.nan
+    if pred_mask.any():
+        X_pred = dfm.loc[pred_mask, ["Nemo"] + feature_cols_num]
+        dfm.loc[pred_mask, "P_Up_next"] = clf.predict_proba(X_pred)[:, 1]
+        dfm.loc[pred_mask, "Delta_next_hat"] = reg.predict(X_pred)
 
     metrics = {
         "AUC_mean": float(np.nanmean(aucs)) if len(aucs) else np.nan,
         "ACC_mean": float(np.mean(accs)) if len(accs) else np.nan,
-        "rows": int(len(dfm))
+        "rows": int(len(train_df))
     }
     return dfm, metrics
 
