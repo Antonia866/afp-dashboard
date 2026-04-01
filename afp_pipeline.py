@@ -117,7 +117,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Target siguiente mes
     df["Delta_next"] = g["Delta_GAP"].shift(-1)
-    df["Up_next"] = (df["Delta_next"] > 0).astype(int)
+    df["Up_next"] = np.where(df["Delta_next"].notna(), (df["Delta_next"] > 0).astype(int), np.nan)
 
     return df
 
@@ -221,15 +221,11 @@ def train_predict_global(df_feat: pd.DataFrame):
     ]
     feature_cols_num = [c for c in feature_cols_num if c in dfm.columns]
 
-    # -----------------------------------------------------
-    # FIX:
-    # 1) df_train: solo filas con target disponible para entrenar
-    # 2) df_pred: filas con features suficientes para predecir
-    # De esta forma la última fecha no se pierde aunque no tenga Delta_next
-    # -----------------------------------------------------
+    # Train: solo filas con target
     df_train = dfm.dropna(subset=feature_cols_num + ["Up_next", "Delta_next"]).copy()
     df_train = df_train.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
 
+    # Pred: todas las filas que tengan features, incluida la última fecha
     df_pred = dfm.dropna(subset=feature_cols_num).copy()
     df_pred = df_pred.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
 
@@ -258,7 +254,6 @@ def train_predict_global(df_feat: pd.DataFrame):
     clf = Pipeline(steps=[("pre", pre), ("model", LogisticRegression(max_iter=1000))])
     reg = Pipeline(steps=[("pre", pre), ("model", Ridge(alpha=1.0))])
 
-    # Validación temporal solo sobre dataset de entrenamiento
     aucs, accs = [], []
     n_splits = min(5, len(df_train) - 1)
 
@@ -283,11 +278,9 @@ def train_predict_global(df_feat: pd.DataFrame):
             except Exception:
                 pass
 
-    # Fit final con todo el train
     clf.fit(X_train, y_cls)
     reg.fit(X_train, y_reg)
 
-    # Predicción sobre TODAS las filas predecibles, incluida última fecha
     if not df_pred.empty:
         X_pred = df_pred[["Nemo"] + feature_cols_num]
         df_pred["P_Up_next"] = clf.predict_proba(X_pred)[:, 1]
@@ -296,7 +289,6 @@ def train_predict_global(df_feat: pd.DataFrame):
         df_pred["P_Up_next"] = np.nan
         df_pred["Delta_next_hat"] = np.nan
 
-    # Merge de predicciones al dataset completo
     dfm = dfm.merge(
         df_pred[["Nemo", "Fecha", "P_Up_next", "Delta_next_hat"]],
         on=["Nemo", "Fecha"],
@@ -329,33 +321,34 @@ def add_actions(df_model: pd.DataFrame) -> pd.DataFrame:
     else:
         dfm["FlowScore_0_100"] = 100 * (raw_score - raw_score.min()) / (raw_score.max() - raw_score.min())
 
+    # Se deja calculada internamente por compatibilidad, pero no se muestra en la UI
     dfm["Prob_Compra_AFP_ProxMes"] = dfm["P_Up_next"]
 
     def accion_tactica(row):
-        p = row.get("Prob_Compra_AFP_ProxMes", np.nan)
         sem = row.get("Semaforo", "🟡")
         fuerte = row.get("CompraVenta_Fuerte", "Neutral")
+        delta = row.get("Delta_GAP", np.nan)
 
-        if fuerte == "Compra fuerte" and pd.notna(p) and p >= 0.60:
+        if fuerte == "Compra fuerte" and pd.notna(delta) and delta > 0:
             return "BUY"
-        if fuerte == "Venta fuerte" and pd.notna(p) and p <= 0.40:
+        if fuerte == "Venta fuerte" and pd.notna(delta) and delta < 0:
             return "SELL/REDUCE"
-        if sem == "🟢" and pd.notna(p) and p >= 0.60:
+        if sem == "🟢":
             return "BUY (light)"
-        if sem == "🔴" and pd.notna(p) and p <= 0.40:
+        if sem == "🔴":
             return "REDUCE"
         return "HOLD"
 
     def accion_relativa(row):
-        p = row.get("Prob_Compra_AFP_ProxMes", np.nan)
         fs = row.get("FlowScore_0_100", np.nan)
+        gap = row.get("GAP", np.nan)
 
-        if pd.isna(p):
-            p = 0.50
         if pd.isna(fs):
             fs = 50
+        if pd.isna(gap):
+            gap = 0
 
-        tilt = 2.0 * (fs - 50) + 200 * (p - 0.50)
+        tilt = 2.0 * (fs - 50) + 25 * np.sign(gap)
         tilt = float(np.clip(tilt, -200, 200))
 
         if tilt >= 60:
@@ -408,7 +401,6 @@ def build_events(df_model: pd.DataFrame) -> pd.DataFrame:
                     "CompraVenta_Fuerte": r.get("CompraVenta_Fuerte", ""),
                     "GAP": r.get("GAP", np.nan),
                     "Delta_GAP": r.get("Delta_GAP", np.nan),
-                    "Prob_Compra_AFP_ProxMes": r.get("Prob_Compra_AFP_ProxMes", np.nan),
                     "Nota": f"{fase} | {r.get('Flujo_AFP', '')} | {r.get('CompraVenta_Fuerte', '')}"
                 })
                 prev_sem = sem
@@ -430,8 +422,7 @@ def build_outputs(xls_source):
     dfm = add_intuitive_labels(dfm)
     dfm = add_actions(dfm)
 
-    # Última fecha: SIEMPRE desde I2, pero ahora buscando en dfm completo
-    # no solo en filas de entrenamiento
+    # Última fecha: SIEMPRE desde I2
     if (dfm["Fecha"] == last_date).any():
         use_last_date = last_date
     else:
