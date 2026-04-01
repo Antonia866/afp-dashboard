@@ -221,12 +221,31 @@ def train_predict_global(df_feat: pd.DataFrame):
     ]
     feature_cols_num = [c for c in feature_cols_num if c in dfm.columns]
 
-    dfm = dfm.dropna(subset=feature_cols_num + ["Up_next", "Delta_next"]).copy()
-    dfm = dfm.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
+    # -----------------------------------------------------
+    # FIX:
+    # 1) df_train: solo filas con target disponible para entrenar
+    # 2) df_pred: filas con features suficientes para predecir
+    # De esta forma la última fecha no se pierde aunque no tenga Delta_next
+    # -----------------------------------------------------
+    df_train = dfm.dropna(subset=feature_cols_num + ["Up_next", "Delta_next"]).copy()
+    df_train = df_train.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
 
-    X = dfm[["Nemo"] + feature_cols_num]
-    y_cls = dfm["Up_next"].astype(int)
-    y_reg = dfm["Delta_next"].astype(float)
+    df_pred = dfm.dropna(subset=feature_cols_num).copy()
+    df_pred = df_pred.sort_values(["Fecha", "Nemo"]).reset_index(drop=True)
+
+    if df_train.empty:
+        metrics = {
+            "AUC_mean": np.nan,
+            "ACC_mean": np.nan,
+            "rows": 0
+        }
+        dfm["P_Up_next"] = np.nan
+        dfm["Delta_next_hat"] = np.nan
+        return dfm, metrics
+
+    X_train = df_train[["Nemo"] + feature_cols_num]
+    y_cls = df_train["Up_next"].astype(int)
+    y_reg = df_train["Delta_next"].astype(float)
 
     pre = ColumnTransformer(
         transformers=[
@@ -239,29 +258,55 @@ def train_predict_global(df_feat: pd.DataFrame):
     clf = Pipeline(steps=[("pre", pre), ("model", LogisticRegression(max_iter=1000))])
     reg = Pipeline(steps=[("pre", pre), ("model", Ridge(alpha=1.0))])
 
-    tss = TimeSeriesSplit(n_splits=5)
+    # Validación temporal solo sobre dataset de entrenamiento
     aucs, accs = [], []
+    n_splits = min(5, len(df_train) - 1)
 
-    for tr_idx, te_idx in tss.split(X, y_cls):
-        clf.fit(X.iloc[tr_idx], y_cls.iloc[tr_idx])
-        proba = clf.predict_proba(X.iloc[te_idx])[:, 1]
-        pred = (proba >= 0.5).astype(int)
-        try:
-            aucs.append(roc_auc_score(y_cls.iloc[te_idx], proba))
-        except Exception:
-            pass
-        accs.append(accuracy_score(y_cls.iloc[te_idx], pred))
+    if n_splits >= 2:
+        tss = TimeSeriesSplit(n_splits=n_splits)
+        for tr_idx, te_idx in tss.split(X_train, y_cls):
+            y_te = y_cls.iloc[te_idx]
+            if y_te.nunique() < 2:
+                continue
 
-    clf.fit(X, y_cls)
-    reg.fit(X, y_reg)
+            clf.fit(X_train.iloc[tr_idx], y_cls.iloc[tr_idx])
+            proba = clf.predict_proba(X_train.iloc[te_idx])[:, 1]
+            pred = (proba >= 0.5).astype(int)
 
-    dfm["P_Up_next"] = clf.predict_proba(X)[:, 1]
-    dfm["Delta_next_hat"] = reg.predict(X)
+            try:
+                aucs.append(roc_auc_score(y_te, proba))
+            except Exception:
+                pass
+
+            try:
+                accs.append(accuracy_score(y_te, pred))
+            except Exception:
+                pass
+
+    # Fit final con todo el train
+    clf.fit(X_train, y_cls)
+    reg.fit(X_train, y_reg)
+
+    # Predicción sobre TODAS las filas predecibles, incluida última fecha
+    if not df_pred.empty:
+        X_pred = df_pred[["Nemo"] + feature_cols_num]
+        df_pred["P_Up_next"] = clf.predict_proba(X_pred)[:, 1]
+        df_pred["Delta_next_hat"] = reg.predict(X_pred)
+    else:
+        df_pred["P_Up_next"] = np.nan
+        df_pred["Delta_next_hat"] = np.nan
+
+    # Merge de predicciones al dataset completo
+    dfm = dfm.merge(
+        df_pred[["Nemo", "Fecha", "P_Up_next", "Delta_next_hat"]],
+        on=["Nemo", "Fecha"],
+        how="left"
+    )
 
     metrics = {
         "AUC_mean": float(np.nanmean(aucs)) if len(aucs) else np.nan,
         "ACC_mean": float(np.mean(accs)) if len(accs) else np.nan,
-        "rows": int(len(dfm))
+        "rows": int(len(df_train))
     }
     return dfm, metrics
 
@@ -385,7 +430,8 @@ def build_outputs(xls_source):
     dfm = add_intuitive_labels(dfm)
     dfm = add_actions(dfm)
 
-    # Última fecha: SIEMPRE desde I2
+    # Última fecha: SIEMPRE desde I2, pero ahora buscando en dfm completo
+    # no solo en filas de entrenamiento
     if (dfm["Fecha"] == last_date).any():
         use_last_date = last_date
     else:
@@ -399,5 +445,3 @@ def build_outputs(xls_source):
     events = build_events(dfm)
 
     return df, dfm, snap_last, metrics, events, use_last_date
-
-  
