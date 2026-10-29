@@ -2,7 +2,7 @@ name: Datos monitores (CMF e INE)
 
 on:
   schedule:
-    - cron: "17 11 * * *"   # todos los días, 08:17 de Chile (verano) / 07:17 (invierno)
+    - cron: "17 11 2 * *"   # mensual: día 2 de cada mes, 08:17 de Chile (verano) / 07:17 (invierno)
   workflow_dispatch:
   push:
     branches: [main]

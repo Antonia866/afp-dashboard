@@ -29,8 +29,6 @@
   }
  },
  "excluidos": {
-  "LAPOLAR": "El RUT 96.874.030 (Empresas La Polar) cambió su razón social a abc S.A. en 2024 tras fusionarse con AD Retail (Abcdin); su consolidado no es comparable con la serie histórica de La Polar.",
-  "HITES": "RUT 96.947.020 (Empresas Hites S.A.). Pendiente validar definiciones contra la serie existente antes de publicar.",
-  "TRICOT": "RUT 76.266.594 (Empresas Tricot S.A.). Pendiente validar definiciones contra la serie existente antes de publicar."
+  "retirados": "Hites, La Polar (abc S.A.) y Tricot se retiraron del monitor de retail a pedido de Anto (2026-10-29)."
  }
 }
