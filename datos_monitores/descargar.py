@@ -6,7 +6,7 @@
 Guarda los archivos en datos_monitores/cmf y datos_monitores/ine y deja un registro en
 datos_monitores/manifest.json. No modifica archivos que no cambiaron.
 """
-import hashlib, html, json, os, re, sys, time, urllib.request, urllib.parse
+import hashlib, html, json, os, re, sys, time, unicodedata, urllib.request, urllib.parse
 from datetime import datetime, timezone
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -81,35 +81,45 @@ def cmf(log):
             n_new += 1; log.append(f"CMF {per}: actualizado ({len(data)//1024} KB) desde {url}")
     return n_new
 
+def post_json(url, data):
+    body = urllib.parse.urlencode(data).encode()
+    req = urllib.request.Request(url, data=body, headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest",
+                                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+def limpio(t):
+    t = unicodedata.normalize("NFKC", str(t or "")).strip()
+    return re.sub(r'[\\/:*?"<>|]+', "_", t)[:120] or "sin_nombre"
+
 def ine(log):
+    """Recorre la carpeta 'CUADROS ESTADÍSTICOS' de cada página del INE (misma API que usa su sitio)."""
     n_new = 0
     for p in INE_PAGES:
         page = get(p)
-        # copia de diagnóstico de la página (los cuadros del INE se cargan por JavaScript)
-        save(os.path.join(BASE, "diagnostico", "ine_" + re.sub(r"\W+", "_", p.split("/")[-1]) + ".html"), page.encode("utf-8"))
-        # diagnóstico: scripts propios del sitio y carpetas de descarga (data-folder)
-        for js in ("/Sitefinity/WebsiteTemplates/INE/App_Theme/js/base_ine.js",):
-            try: save(os.path.join(BASE, "diagnostico", os.path.basename(js)), get(urllib.parse.urljoin(p, js), binary=True))
-            except Exception as e: log.append(f"INE diagnóstico {js}: {e}")
-        for folder in re.findall(r'data-folder="([0-9a-f-]{36})"', page):
-            for cand in (f"https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%20{folder}&$top=200",
-                         f"https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%20{folder}&$top=200"):
-                try:
-                    txt = get(cand)
-                    save(os.path.join(BASE, "diagnostico", f"folder_{folder[:8]}_{'f' if 'FolderId' in cand else 'p'}.json"), txt.encode("utf-8"))
-                except Exception as e: log.append(f"INE diagnóstico {cand}: {e}")
-        for js in sorted(set(re.findall(r'(?:src|href)="([^"]+?(?:api|docs|documentos|library|biblioteca)[^"]*)"', page, re.I)))[:400]:
-            log.append("INE enlace candidato: " + js[:200]) if "xls" in js.lower() or "api" in js.lower() else None
-        links = set(urllib.parse.urljoin(p, html.unescape(h)) for h in re.findall(r'href="([^"]+\.xlsx?[^"]*)"', page, re.I))
-        for url in sorted(links):
-            name = urllib.parse.unquote(os.path.basename(urllib.parse.urlparse(url).path))
-            name = re.sub(r"[^A-Za-z0-9._()\-áéíóúñÁÉÍÓÚÑ ]", "_", name)
-            try:
-                data = get(url, binary=True)
-            except Exception as e:  # noqa
-                log.append(f"INE {name}: no se pudo descargar ({e})"); continue
-            if save(os.path.join(BASE, "ine", name), data):
-                n_new += 1; log.append(f"INE {name}: actualizado ({len(data)//1024} KB) desde {url}")
+        base = p.rstrip("/") + "/"
+        m = re.search(r'data-folder="([0-9a-f-]{36})"[^>]*>(?:<[^>]+>)*\s*CUADROS ESTAD', page, re.I)
+        if not m:
+            log.append(f"INE: no se encontró la carpeta de cuadros en {p}"); continue
+        pila, vistos = [(m.group(1), [])], 0
+        while pila and vistos < 120:
+            fid, ruta = pila.pop(); vistos += 1
+            try: hijos = post_json(base + "hijosCarpeta/", {"idFolder": fid}).get("folder") or []
+            except Exception as e: log.append(f"INE carpeta {'/'.join(ruta) or 'raíz'}: {e}"); continue
+            if hijos:
+                for h in hijos: pila.append((h.get("Id"), ruta + [limpio(h.get("Titulo"))]))
+                continue
+            try: docs = post_json(base + "getArchivos/", {"idFolder": fid}).get("documento") or []
+            except Exception as e: log.append(f"INE archivos {'/'.join(ruta)}: {e}"); continue
+            for d in docs:
+                tipo = (d.get("Tipo") or "").lower()
+                if tipo not in (".xlsx", ".xls", ".csv"): continue
+                url = (d.get("Url") or "").replace("http:", "https:")
+                destino = os.path.join(BASE, "ine", *ruta, limpio(d.get("Titulo")) + tipo)
+                try: data = get(url, binary=True)
+                except Exception as e: log.append(f"INE {d.get('Titulo')}: no se pudo descargar ({e})"); continue
+                if save(destino, data):
+                    n_new += 1; log.append(f"INE {'/'.join(ruta)}/{d.get('Titulo')}: actualizado ({len(data)//1024} KB)")
     return n_new
 
 def main():
