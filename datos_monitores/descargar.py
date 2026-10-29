@@ -22,6 +22,7 @@ def get(url, binary=False, tries=3):
     last = None
     for i in range(tries):
         try:
+            url = urllib.parse.quote(url, safe=":/?=&%#()+,;~@!$'*[]")
             req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "es-CL,es;q=0.9"})
             with urllib.request.urlopen(req, timeout=60) as r:
                 data = r.read()
