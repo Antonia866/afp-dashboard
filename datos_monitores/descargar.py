@@ -14,6 +14,10 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chr
 MESES = {"enero":1,"febrero":2,"marzo":3,"abril":4,"mayo":5,"junio":6,"julio":7,"agosto":8,"septiembre":9,"setiembre":9,"octubre":10,"noviembre":11,"diciembre":12}
 
 CMF_LIST = "https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-28911.html"
+CMF_LISTAS = [  # (listado, carpeta, prefijo, extensiones)
+    (CMF_LIST, "cmf", "reporte_mensual", ("xlsx",)),
+    ("https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-28917.html", "cmf_balances", "balance", ("zip", "txt", "xlsx")),
+]
 INE_PAGES = [
     "https://www.ine.gob.cl/estadisticas-por-tema/comercio-y-servicios/actividad-mensual-del-comercio",
 ]
@@ -42,6 +46,9 @@ def save(path, data):
     return True
 
 def cmf(log):
+    return sum(cmf_lista(log, *x) for x in CMF_LISTAS)
+
+def cmf_lista(log, CMF_LIST, carpeta, prefijo, exts):
     page = get(CMF_LIST)
     # artículos del listado: w4-article-NNNNN.html con su título "... - Mes AAAA"
     arts = {}
@@ -49,7 +56,7 @@ def cmf(log):
         title = html.unescape(re.sub("<[^>]+>", " ", m.group(3))).strip()
         arts[m.group(2)] = {"url": urllib.parse.urljoin(CMF_LIST, m.group(1)), "title": title}
     files = {}
-    for m in re.finditer(r'href="([^"]*articles-(\d+)_recurso_\d+\.xlsx[^"]*)"', page):
+    for m in re.finditer(r'href="([^"]*articles-(\d+)_recurso_\d+\.(?:%s)[^"]*)"' % "|".join(exts), page):
         files.setdefault(m.group(2), urllib.parse.urljoin(CMF_LIST, html.unescape(m.group(1))))
     n_new = 0
     for aid in sorted(set(arts) | set(files)):
@@ -58,7 +65,7 @@ def cmf(log):
         if not url:
             try:
                 art = get(arts[aid]["url"])
-                mm = re.search(r'href="([^"]*articles-%s_recurso_\d+\.xlsx[^"]*)"' % aid, art)
+                mm = re.search(r'href="([^"]*articles-%s_recurso_\d+\.(?:%s)[^"]*)"' % (aid, "|".join(exts)), art)
                 url = urllib.parse.urljoin(arts[aid]["url"], html.unescape(mm.group(1))) if mm else None
                 if not title:
                     tt = re.search(r"<title>(.*?)</title>", art, re.S); title = tt.group(1) if tt else ""
@@ -78,8 +85,9 @@ def cmf(log):
             data = get(url, binary=True)
         except Exception as e:  # noqa
             log.append(f"CMF {per}: no se pudo descargar ({e})"); continue
-        if save(os.path.join(BASE, "cmf", f"reporte_mensual_{per}.xlsx"), data):
-            n_new += 1; log.append(f"CMF {per}: actualizado ({len(data)//1024} KB) desde {url}")
+        ext = re.search(r"\.(\w+)(?:\?|$)", url).group(1).lower()
+        if save(os.path.join(BASE, carpeta, f"{prefijo}_{per}.{ext}"), data):
+            n_new += 1; log.append(f"CMF {prefijo} {per}: actualizado ({len(data)//1024} KB) desde {url}")
     return n_new
 
 def post_json(url, data):
