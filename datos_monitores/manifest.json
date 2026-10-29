@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29T15:22:31+00:00",
+ "actualizado": "2026-10-29T15:30:05+00:00",
  "archivos": {
   "cmf": [
    "reporte_mensual_2013-10.xlsx",
@@ -148,6 +148,14 @@
   ]
  },
  "historial": [
+  {
+   "fecha": "2026-10-29T15:30:05+00:00",
+   "nuevos": {
+    "cmf": 0,
+    "ine": 0
+   },
+   "log": []
+  },
   {
    "fecha": "2026-10-29T15:22:31+00:00",
    "nuevos": {
