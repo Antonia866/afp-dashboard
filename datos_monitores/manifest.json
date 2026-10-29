@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29T15:48:45+00:00",
+ "actualizado": "2026-10-29T15:53:05+00:00",
  "archivos": {
   "cmf": [
    "reporte_mensual_2013-10.xlsx",
@@ -145,9 +145,27 @@
    "reporte_mensual_2026-06.xlsx",
    "reporte_mensual_2026-07.xlsx",
    "reporte_mensual_2026-08.xlsx"
+  ],
+  "ine": [
+   "Base promedio año 2014=100",
+   "Base promedio año 2018=100"
   ]
  },
  "historial": [
+  {
+   "fecha": "2026-10-29T15:53:05+00:00",
+   "nuevos": {
+    "cmf": 0,
+    "ine": 5
+   },
+   "log": [
+    "INE Base promedio año 2014=100/Series mensuales desde enero de 2014 a la fecha: actualizado (358 KB)",
+    "INE Base promedio año 2014=100/Serie mensual empalmada, desestacionalizada y tendencia ciclo desde 2005 hasta la fecha: actualizado (44 KB)",
+    "INE Base promedio año 2018=100/Series mensuales desde enero de 2018 a la fecha: actualizado (370 KB)",
+    "INE Base promedio año 2018=100/Serie mensual empalmada, desestacionalizada y tendencia ciclo desde 2005 hasta la fecha: actualizado (51 KB)",
+    "INE Base promedio año 2018=100/Series empalmadas históricas: actualizado (1552 KB)"
+   ]
+  },
   {
    "fecha": "2026-10-29T15:48:45+00:00",
    "nuevos": {
