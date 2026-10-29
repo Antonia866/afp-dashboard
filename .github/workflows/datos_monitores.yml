@@ -1,0 +1,42 @@
+name: Datos monitores (CMF e INE)
+
+on:
+  schedule:
+    - cron: "17 11 * * *"   # todos los días, 08:17 de Chile (verano) / 07:17 (invierno)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "datos_monitores/descargar.py"
+      - ".github/workflows/datos_monitores.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: datos-monitores
+  cancel-in-progress: false
+
+jobs:
+  descargar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Descargar archivos de la CMF y el INE
+        run: python datos_monitores/descargar.py
+      - name: Guardar cambios en el repositorio
+        run: |
+          git config user.name "datos-monitores-bot"
+          git config user.email "datos-monitores-bot@users.noreply.github.com"
+          git add datos_monitores
+          if git diff --cached --quiet; then
+            echo "Sin archivos nuevos"
+          else
+            git commit -m "Datos CMF/INE $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
