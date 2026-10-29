@@ -12,6 +12,7 @@ on:
       - "datos_monitores/ine_series.py"
       - "datos_monitores/eeff_series.py"
       - "datos_monitores/eeff_mapeo.json"
+      - "datos_monitores/diag_cmf.py"
       - ".github/workflows/datos_monitores.yml"
 
 permissions:
@@ -32,6 +33,9 @@ jobs:
           python-version: "3.12"
       - name: Descargar archivos de la CMF y el INE
         run: python datos_monitores/descargar.py
+      - name: Diagnóstico listados CMF
+        continue-on-error: true
+        run: python datos_monitores/diag_cmf.py
       - name: Convertir reportes CMF en series mensuales del monitor
         run: |
           pip install --quiet openpyxl==3.1.5 xlrd==2.0.1
