@@ -1,3 +1,0 @@
-get: 139765 bytes, inicio b'<!DOCTYPE HTML>\n<html lang="es"><head><title>CMF Chile - Con'
-post: 1699157 bytes, inicio b'<!DOCTYPE HTML>\n<html lang="es"><head><title>CMF Chile - Con'
-xbrl: 346408 bytes, inicio b'PK\x03\x04\x14\x00\x02\x00\x08\x00\xce\x86\x0b]r\x96w\x88\xc5\xed\x03\x00\x02/h\x00\x16\x00i\x0090749000_202606_C.xbrlSDT\x00\xb8\x00\x00\x00'
