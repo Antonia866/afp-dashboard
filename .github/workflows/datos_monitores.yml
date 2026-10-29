@@ -10,6 +10,8 @@ on:
       - "datos_monitores/descargar.py"
       - "datos_monitores/cmf_series.py"
       - "datos_monitores/ine_series.py"
+      - "datos_monitores/eeff_series.py"
+      - "datos_monitores/eeff_mapeo.json"
       - ".github/workflows/datos_monitores.yml"
 
 permissions:
@@ -35,6 +37,7 @@ jobs:
           pip install --quiet openpyxl==3.1.5 xlrd==2.0.1
           python datos_monitores/cmf_series.py
           python datos_monitores/ine_series.py
+          python datos_monitores/eeff_series.py
       - name: Guardar cambios en el repositorio
         run: |
           git config user.name "datos-monitores-bot"

@@ -1,0 +1,14 @@
+{
+ "nota": "Mapeo XBRL -> métricas del Monitor de Retail validado el 29-10-2026 contra los datos ya cargados (2T25 y 2T26 idénticos). Solo métricas con la misma definición; EBITDA, utilidad sin NIC 29 de Cencosud, deuda neta y segmentos siguen saliendo de los informes de cada compañía.",
+ "mapeo": {
+  "CENCOSUD": {"ingresos": "ifrs-full:Revenue"},
+  "FALAB": {"utilidad": "ifrs-full:ProfitLossAttributableToOwnersOfParent"},
+  "RIPLEY": {"ingresos": "ifrs-full:Revenue", "ganancia_bruta": "ifrs-full:GrossProfit", "utilidad": "ifrs-full:ProfitLoss"},
+  "SMU": {"ingresos": "ifrs-full:Revenue", "ganancia_bruta": "ifrs-full:GrossProfit", "utilidad": "ifrs-full:ProfitLossAttributableToOwnersOfParent"},
+  "MALLPLAZA": {"ingresos": "ifrs-full:Revenue"},
+  "PARAUCO": {"ingresos": "ifrs-full:Revenue"},
+  "CENCOMALLS": {"ingresos": "ifrs-full:Revenue", "utilidad": "ifrs-full:ProfitLoss"}
+ },
+ "excluidos": {"LAPOLAR": "El RUT 96.874.030 reporta hoy como ABC S.A. (La Polar + negocio financiero); no coincide con la serie de La Polar retail.",
+               "HITES": "RUT por confirmar", "TRICOT": "RUT por confirmar"}
+}
