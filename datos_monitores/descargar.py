@@ -134,7 +134,7 @@ def ine(log):
 EMISORES = {  # entidad del monitor -> RUT (sin DV) en la CMF; el nombre se verifica en cada XBRL
     "FALAB": "90749000", "CENCOSUD": "93834000", "RIPLEY": "99579730", "SMU": "76012676",
     "MALLPLAZA": "76017019", "PARAUCO": "94627000", "CENCOMALLS": "76433310",
-    "HITES": "81675600", "LAPOLAR": "96874030", "TRICOT": "84000000",
+    "HITES": "96947020", "LAPOLAR": "96874030", "TRICOT": "76266594",
 }
 XBRL_URL = ("https://www.cmfchile.cl/institucional/inc/inf_financiera/ifrs/safec_ifrs_verarchivo.php?auth=&send=&rut={rut}"
             "&mm={mm}&aa={aa}&archivo={rut}_{aa}{mm}_C.zip&desc_archivo=Estados%20financieros%20(XBRL)&tipo_archivo=XBRL")
