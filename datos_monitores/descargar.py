@@ -16,7 +16,7 @@ MESES = {"enero":1,"febrero":2,"marzo":3,"abril":4,"mayo":5,"junio":6,"julio":7,
 CMF_LIST = "https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-28911.html"
 CMF_LISTAS = [  # (listado, carpeta, prefijo, extensiones)
     (CMF_LIST, "cmf", "reporte_mensual", ("xlsx",)),
-    ("https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-28917.html", "cmf_balances", "balance", ("zip", "txt", "xlsx")),
+    ("https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-32901.html", "cmf_balances", "balance_txt", ("zip",), 4),
 ]
 INE_PAGES = [
     "https://www.ine.gob.cl/estadisticas-por-tema/comercio-y-servicios/actividad-mensual-del-comercio",
@@ -48,18 +48,26 @@ def save(path, data):
 def cmf(log):
     return sum(cmf_lista(log, *x) for x in CMF_LISTAS)
 
-def cmf_lista(log, CMF_LIST, carpeta, prefijo, exts):
+def cmf_lista(log, CMF_LIST, carpeta, prefijo, exts, max_n=None):
     page = get(CMF_LIST)
     # artículos del listado: w4-article-NNNNN.html con su título "... - Mes AAAA"
     arts = {}
     for m in re.finditer(r'href="([^"]*w4-article-(\d+)\.html)"[^>]*>(.*?)</a>', page, re.S):
         title = html.unescape(re.sub("<[^>]+>", " ", m.group(3))).strip()
+        if m.group(2) in arts and not title: continue
         arts[m.group(2)] = {"url": urllib.parse.urljoin(CMF_LIST, m.group(1)), "title": title}
     files = {}
     for m in re.finditer(r'href="([^"]*articles-(\d+)_recurso_\d+\.(?:%s)[^"]*)"' % "|".join(exts), page):
         files.setdefault(m.group(2), urllib.parse.urljoin(CMF_LIST, html.unescape(m.group(1))))
+    # etiqueta "Descargar <Mes AAAA>" del enlace directo al archivo
+    for m in re.finditer(r'href="[^"]*articles-(\d+)_recurso_\d+\.[^"]*"[^>]*aria-label="([^"]+)"', page):
+        arts.setdefault(m.group(1), {"url": "", "title": html.unescape(m.group(2))})
+        if not arts[m.group(1)]["title"]: arts[m.group(1)]["title"] = html.unescape(m.group(2))
+    ids = sorted(set(arts) | set(files), key=int)
+    if max_n:
+        ids = sorted(set(files), key=int)[-max_n:]
     n_new = 0
-    for aid in sorted(set(arts) | set(files)):
+    for aid in ids:
         title = arts.get(aid, {}).get("title", "")
         url = files.get(aid)
         if not url:
@@ -164,9 +172,52 @@ def eeff(log):
                 n_new += 1; log.append(f"EEFF {ent} {aa}-{mm}: actualizado ({len(data)//1024} KB)")
     return n_new
 
+RAZ_URL = ("https://www.cmfchile.cl/institucional/mercados/entidad.php?mercado=V&rut={rut}&grupo=&tipoentidad=RVEMI&row=&vig=VI"
+           "&control=svs&pestania=3&mm={mm}&aa={aa}&tipo=C&orig=lista&tipo_norma=IFRS")
+
+def razonado(log):
+    """Análisis razonado (PDF) de cada emisor en la CMF, últimos 9 trimestres: fuente de EBITDA, márgenes y SSS."""
+    n_new = 0
+    hoy = datetime.now(timezone.utc)
+    y, q = hoy.year, (hoy.month - 1) // 3 + 1
+    trimestres = []
+    for _ in range(9):
+        q -= 1
+        if q == 0: y, q = y - 1, 4
+        trimestres.append((str(y), f"{q*3:02d}"))
+    os.makedirs(os.path.join(BASE, "diagnostico"), exist_ok=True)
+    for ent, rut in EMISORES.items():
+        for i, (aa, mm) in enumerate(trimestres):
+            destino = os.path.join(BASE, "razonado", ent, f"razonado_{aa}{mm}.pdf")
+            if os.path.exists(destino) and i > 1:
+                continue
+            try:
+                page = get(RAZ_URL.format(rut=rut, aa=aa, mm=mm))
+            except Exception as e:
+                log.append(f"Razonado {ent} {aa}-{mm}: página no disponible ({e})"); continue
+            if ent == "FALAB" and i == 1:
+                with open(os.path.join(BASE, "diagnostico", "falab_pestania3.html"), "w", encoding="utf-8") as f: f.write(page)
+            url = None
+            for m in re.finditer(r'<a[^>]+href="([^"]*verarchivo[^"]*)"[^>]*>(.*?)</a>', page, re.S | re.I):
+                href = html.unescape(m.group(1)); txt = html.unescape(re.sub("<[^>]+>", " ", m.group(2)))
+                blob = (urllib.parse.unquote_plus(href) + " " + txt).lower()
+                if "razonado" in blob:
+                    url = urllib.parse.urljoin(RAZ_URL, href); break
+            if not url:
+                continue
+            try:
+                data = get(url, binary=True)
+            except Exception as e:
+                log.append(f"Razonado {ent} {aa}-{mm}: {e}"); continue
+            if data[:4] != b"%PDF":
+                continue
+            if save(destino, data):
+                n_new += 1; log.append(f"Razonado {ent} {aa}-{mm}: actualizado ({len(data)//1024} KB)")
+    return n_new
+
 def main():
     log, res = [], {}
-    for nombre, fn in (("cmf", cmf), ("ine", ine), ("eeff", eeff)):
+    for nombre, fn in (("cmf", cmf), ("ine", ine), ("eeff", eeff), ("razonado", razonado)):
         try:
             res[nombre] = fn(log)
         except Exception as e:  # noqa
@@ -178,7 +229,7 @@ def main():
             man = json.load(f)
     hist = man.get("historial", [])
     hist.insert(0, {"fecha": datetime.now(timezone.utc).isoformat(timespec="seconds"), "nuevos": res, "log": log})
-    archivos = {d: sorted(os.listdir(os.path.join(BASE, d))) for d in ("cmf", "cmf_balances", "ine", "eeff") if os.path.isdir(os.path.join(BASE, d))}
+    archivos = {d: sorted(os.listdir(os.path.join(BASE, d))) for d in ("cmf", "cmf_balances", "ine", "eeff", "razonado") if os.path.isdir(os.path.join(BASE, d))}
     man = {"actualizado": hist[0]["fecha"], "archivos": archivos, "historial": hist[:60],
            "fuentes": {"cmf": CMF_LIST, "ine": INE_PAGES}}
     with open(man_path, "w", encoding="utf-8") as f:
