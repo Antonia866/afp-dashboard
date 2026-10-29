@@ -85,6 +85,10 @@ def ine(log):
     n_new = 0
     for p in INE_PAGES:
         page = get(p)
+        # copia de diagnóstico de la página (los cuadros del INE se cargan por JavaScript)
+        save(os.path.join(BASE, "diagnostico", "ine_" + re.sub(r"\W+", "_", p.split("/")[-1]) + ".html"), page.encode("utf-8"))
+        for js in sorted(set(re.findall(r'(?:src|href)="([^"]+?(?:api|docs|documentos|library|biblioteca)[^"]*)"', page, re.I)))[:400]:
+            log.append("INE enlace candidato: " + js[:200]) if "xls" in js.lower() or "api" in js.lower() else None
         links = set(urllib.parse.urljoin(p, html.unescape(h)) for h in re.findall(r'href="([^"]+\.xlsx?[^"]*)"', page, re.I))
         for url in sorted(links):
             name = urllib.parse.unquote(os.path.basename(urllib.parse.urlparse(url).path))

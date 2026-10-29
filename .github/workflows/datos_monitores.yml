@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "datos_monitores/descargar.py"
+      - "datos_monitores/cmf_series.py"
       - ".github/workflows/datos_monitores.yml"
 
 permissions:
@@ -28,6 +29,10 @@ jobs:
           python-version: "3.12"
       - name: Descargar archivos de la CMF y el INE
         run: python datos_monitores/descargar.py
+      - name: Convertir reportes CMF en series mensuales del monitor
+        run: |
+          pip install --quiet openpyxl==3.1.5
+          python datos_monitores/cmf_series.py
       - name: Guardar cambios en el repositorio
         run: |
           git config user.name "datos-monitores-bot"
