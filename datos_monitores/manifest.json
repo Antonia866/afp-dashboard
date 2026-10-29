@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29T15:42:59+00:00",
+ "actualizado": "2026-10-29T15:48:45+00:00",
  "archivos": {
   "cmf": [
    "reporte_mensual_2013-10.xlsx",
@@ -148,6 +148,20 @@
   ]
  },
  "historial": [
+  {
+   "fecha": "2026-10-29T15:48:45+00:00",
+   "nuevos": {
+    "cmf": 0,
+    "ine": 0
+   },
+   "log": [
+    "INE Series mensuales desde enero de 2014 a la fecha: no se pudo descargar ('ascii' codec can't encode character '\\xf1' in position 92: ordinal not in range(128))",
+    "INE Serie mensual empalmada, desestacionalizada y tendencia ciclo desde 2005 hasta la fecha: no se pudo descargar ('ascii' codec can't encode character '\\xf1' in position 92: ordinal not in range(128))",
+    "INE Series mensuales desde enero de 2018 a la fecha: no se pudo descargar ('ascii' codec can't encode character '\\xf1' in position 92: ordinal not in range(128))",
+    "INE Serie mensual empalmada, desestacionalizada y tendencia ciclo desde 2005 hasta la fecha: no se pudo descargar ('ascii' codec can't encode character '\\xf1' in position 92: ordinal not in range(128))",
+    "INE Series empalmadas históricas: no se pudo descargar ('ascii' codec can't encode character '\\xf1' in position 92: ordinal not in range(128))"
+   ]
+  },
   {
    "fecha": "2026-10-29T15:42:59+00:00",
    "nuevos": {
