@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29T15:30:05+00:00",
+ "actualizado": "2026-10-29T15:42:59+00:00",
  "archivos": {
   "cmf": [
    "reporte_mensual_2013-10.xlsx",
@@ -148,6 +148,31 @@
   ]
  },
  "historial": [
+  {
+   "fecha": "2026-10-29T15:42:59+00:00",
+   "nuevos": {
+    "cmf": 0,
+    "ine": 0
+   },
+   "log": [
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%2093916731-c7aa-409c-9b58-6a0248892900&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%2093916731-c7aa-409c-9b58-6a0248892900&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%2099cf7596-9f14-4cd7-8f6d-3347d35cead4&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%2099cf7596-9f14-4cd7-8f6d-3347d35cead4&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%2003f8ab65-32df-4e9d-868f-417d429acb36&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%2003f8ab65-32df-4e9d-868f-417d429acb36&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%2042f1a8a9-e8b5-47a3-82be-1693cfa23682&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%2042f1a8a9-e8b5-47a3-82be-1693cfa23682&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%20ea87c37a-7a63-4d93-9d3c-c07b29a1c7dc&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%20ea87c37a-7a63-4d93-9d3c-c07b29a1c7dc&$top=200: <urlopen error [Errno 104] Connection reset by peer>",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%201d7d9c98-450b-4d1a-8201-746de0e254e6&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%201d7d9c98-450b-4d1a-8201-746de0e254e6&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%201cc8fae4-d5f2-4c70-808a-d7eb0d975981&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%201cc8fae4-d5f2-4c70-808a-d7eb0d975981&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%2060628192-39e3-421f-a5ad-ba9309de9dfb&$top=200: HTTP Error 401: Unauthorized",
+    "INE diagnóstico https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%2060628192-39e3-421f-a5ad-ba9309de9dfb&$top=200: <urlopen error [Errno 104] Connection reset by peer>"
+   ]
+  },
   {
    "fecha": "2026-10-29T15:30:05+00:00",
    "nuevos": {
