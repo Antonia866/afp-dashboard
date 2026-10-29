@@ -87,6 +87,17 @@ def ine(log):
         page = get(p)
         # copia de diagnóstico de la página (los cuadros del INE se cargan por JavaScript)
         save(os.path.join(BASE, "diagnostico", "ine_" + re.sub(r"\W+", "_", p.split("/")[-1]) + ".html"), page.encode("utf-8"))
+        # diagnóstico: scripts propios del sitio y carpetas de descarga (data-folder)
+        for js in ("/Sitefinity/WebsiteTemplates/INE/App_Theme/js/base_ine.js",):
+            try: save(os.path.join(BASE, "diagnostico", os.path.basename(js)), get(urllib.parse.urljoin(p, js), binary=True))
+            except Exception as e: log.append(f"INE diagnóstico {js}: {e}")
+        for folder in re.findall(r'data-folder="([0-9a-f-]{36})"', page):
+            for cand in (f"https://www.ine.gob.cl/api/default/documents?$filter=FolderId%20eq%20{folder}&$top=200",
+                         f"https://www.ine.gob.cl/api/default/documents?$filter=ParentId%20eq%20{folder}&$top=200"):
+                try:
+                    txt = get(cand)
+                    save(os.path.join(BASE, "diagnostico", f"folder_{folder[:8]}_{'f' if 'FolderId' in cand else 'p'}.json"), txt.encode("utf-8"))
+                except Exception as e: log.append(f"INE diagnóstico {cand}: {e}")
         for js in sorted(set(re.findall(r'(?:src|href)="([^"]+?(?:api|docs|documentos|library|biblioteca)[^"]*)"', page, re.I)))[:400]:
             log.append("INE enlace candidato: " + js[:200]) if "xls" in js.lower() or "api" in js.lower() else None
         links = set(urllib.parse.urljoin(p, html.unescape(h)) for h in re.findall(r'href="([^"]+\.xlsx?[^"]*)"', page, re.I))
