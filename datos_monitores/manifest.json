@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29T16:28:31+00:00",
+ "actualizado": "2026-10-29T17:40:44+00:00",
  "archivos": {
   "cmf": [
    "reporte_mensual_2013-10.xlsx",
@@ -154,14 +154,50 @@
    "CENCOMALLS",
    "CENCOSUD",
    "FALAB",
+   "HITES",
    "LAPOLAR",
    "MALLPLAZA",
    "PARAUCO",
    "RIPLEY",
-   "SMU"
+   "SMU",
+   "TRICOT"
   ]
  },
  "historial": [
+  {
+   "fecha": "2026-10-29T17:40:44+00:00",
+   "nuevos": {
+    "cmf": 0,
+    "ine": 0,
+    "eeff": 24
+   },
+   "log": [
+    "EEFF HITES 2026-06: actualizado (58 KB)",
+    "EEFF HITES 2026-03: actualizado (55 KB)",
+    "EEFF HITES 2025-12: actualizado (59 KB)",
+    "EEFF HITES 2025-09: actualizado (60 KB)",
+    "EEFF HITES 2025-06: actualizado (58 KB)",
+    "EEFF HITES 2025-03: actualizado (56 KB)",
+    "EEFF HITES 2024-12: actualizado (58 KB)",
+    "EEFF HITES 2024-09: actualizado (59 KB)",
+    "EEFF HITES 2024-06: actualizado (58 KB)",
+    "EEFF HITES 2024-03: actualizado (58 KB)",
+    "EEFF HITES 2023-12: actualizado (59 KB)",
+    "EEFF HITES 2023-09: actualizado (59 KB)",
+    "EEFF TRICOT 2026-06: actualizado (92 KB)",
+    "EEFF TRICOT 2026-03: actualizado (89 KB)",
+    "EEFF TRICOT 2025-12: actualizado (90 KB)",
+    "EEFF TRICOT 2025-09: actualizado (91 KB)",
+    "EEFF TRICOT 2025-06: actualizado (94 KB)",
+    "EEFF TRICOT 2025-03: actualizado (92 KB)",
+    "EEFF TRICOT 2024-12: actualizado (93 KB)",
+    "EEFF TRICOT 2024-09: actualizado (95 KB)",
+    "EEFF TRICOT 2024-06: actualizado (85 KB)",
+    "EEFF TRICOT 2024-03: actualizado (71 KB)",
+    "EEFF TRICOT 2023-12: actualizado (79 KB)",
+    "EEFF TRICOT 2023-09: actualizado (83 KB)"
+   ]
+  },
   {
    "fecha": "2026-10-29T16:28:31+00:00",
    "nuevos": {
