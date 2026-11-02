@@ -17,6 +17,7 @@ CMF_LIST = "https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-289
 CMF_LISTAS = [  # (listado, carpeta, prefijo, extensiones)
     (CMF_LIST, "cmf", "reporte_mensual", ("xlsx",)),
     ("https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-32901.html", "cmf_balances", "balance_txt", ("zip",), 4),
+    ("https://www.cmfchile.cl/portal/estadisticas/626/w4-propertyvalue-28910.html", "cmf_exterior", "importes_exterior", ("xlsx", "xls"), 36),
 ]
 INE_PAGES = [
     "https://www.ine.gob.cl/estadisticas-por-tema/comercio-y-servicios/actividad-mensual-del-comercio",
@@ -229,7 +230,7 @@ def main():
             man = json.load(f)
     hist = man.get("historial", [])
     hist.insert(0, {"fecha": datetime.now(timezone.utc).isoformat(timespec="seconds"), "nuevos": res, "log": log})
-    archivos = {d: sorted(os.listdir(os.path.join(BASE, d))) for d in ("cmf", "cmf_balances", "ine", "eeff", "razonado") if os.path.isdir(os.path.join(BASE, d))}
+    archivos = {d: sorted(os.listdir(os.path.join(BASE, d))) for d in ("cmf", "cmf_balances", "cmf_exterior", "ine", "eeff", "razonado") if os.path.isdir(os.path.join(BASE, d))}
     man = {"actualizado": hist[0]["fecha"], "archivos": archivos, "historial": hist[:60],
            "fuentes": {"cmf": CMF_LIST, "ine": INE_PAGES}}
     with open(man_path, "w", encoding="utf-8") as f:
