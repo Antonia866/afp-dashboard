@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29T17:56:48+00:00",
+ "actualizado": "2026-11-02T13:19:47+00:00",
  "archivos": {
   "cmf": [
    "reporte_mensual_2013-10.xlsx",
@@ -144,13 +144,22 @@
    "reporte_mensual_2026-05.xlsx",
    "reporte_mensual_2026-06.xlsx",
    "reporte_mensual_2026-07.xlsx",
-   "reporte_mensual_2026-08.xlsx"
+   "reporte_mensual_2026-08.xlsx",
+   "reporte_mensual_2026-09.xlsx"
   ],
   "cmf_balances": [
    "balance_txt_2026-05.zip",
    "balance_txt_2026-06.zip",
    "balance_txt_2026-07.zip",
-   "balance_txt_2026-08.zip"
+   "balance_txt_2026-08.zip",
+   "balance_txt_2026-09.zip"
+  ],
+  "cmf_exterior": [
+   "importes_exterior_2026-05.xlsx",
+   "importes_exterior_2026-06.xlsx",
+   "importes_exterior_2026-07.xlsx",
+   "importes_exterior_2026-08.xlsx",
+   "importes_exterior_2026-09.xlsx"
   ],
   "ine": [
    "Base promedio año 2014=100",
@@ -178,6 +187,60 @@
   ]
  },
  "historial": [
+  {
+   "fecha": "2026-11-02T13:19:47+00:00",
+   "nuevos": {
+    "cmf": 38,
+    "ine": 3,
+    "eeff": 1,
+    "razonado": 1
+   },
+   "log": [
+    "CMF reporte_mensual 2026-09: actualizado (542 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114567_recurso_1.xlsx?ts=1793359008",
+    "CMF balance_txt 2026-09: actualizado (444 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114577_recurso_1.zip?ts=1793360618",
+    "CMF importes_exterior 2026-06: actualizado (41 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-112234_recurso_1.xlsx?ts=1785447248",
+    "CMF importes_exterior 2026-06: actualizado (84 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-112235_recurso_1.xlsx?ts=1785447426",
+    "CMF importes_exterior 2026-06: actualizado (49 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-112236_recurso_1.xlsx?ts=1785447562",
+    "CMF importes_exterior 2026-05: actualizado (322 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-112237_recurso_1.xlsx?ts=1785447813",
+    "CMF importes_exterior 2026-05: actualizado (167 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-112238_recurso_1.xlsx?ts=1785448052",
+    "CMF importes_exterior 2026-05: actualizado (99 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-112239_recurso_1.xlsx?ts=1785448191",
+    "CMF importes_exterior 2026-07: actualizado (541 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113057_recurso_1.xlsx?ts=1787943075",
+    "CMF importes_exterior 2026-07: actualizado (169 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113058_recurso_1.xlsx?ts=1787943222",
+    "CMF importes_exterior 2026-07: actualizado (114 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113059_recurso_1.xlsx?ts=1787943343",
+    "CMF importes_exterior 2026-07: actualizado (49 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113060_recurso_1.xlsx?ts=1787943498",
+    "CMF importes_exterior 2026-07: actualizado (41 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113061_recurso_1.xlsx?ts=1787943667",
+    "CMF importes_exterior 2026-07: actualizado (84 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113062_recurso_1.xlsx?ts=1787943801",
+    "CMF importes_exterior 2026-07: actualizado (49 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113063_recurso_1.xlsx?ts=1787943965",
+    "CMF importes_exterior 2026-06: actualizado (322 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113064_recurso_1.xlsx?ts=1787944267",
+    "CMF importes_exterior 2026-06: actualizado (167 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113065_recurso_1.xlsx?ts=1787944434",
+    "CMF importes_exterior 2026-06: actualizado (92 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113066_recurso_1.xlsx?ts=1787944549",
+    "CMF importes_exterior 2026-08: actualizado (528 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113883_recurso_1.xlsx?ts=1790771875",
+    "CMF importes_exterior 2026-08: actualizado (169 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113884_recurso_1.xlsx?ts=1790772008",
+    "CMF importes_exterior 2026-08: actualizado (114 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113885_recurso_1.xlsx?ts=1790772163",
+    "CMF importes_exterior 2026-08: actualizado (49 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113886_recurso_1.xlsx?ts=1790772266",
+    "CMF importes_exterior 2026-08: actualizado (41 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113888_recurso_1.xlsx?ts=1790772438",
+    "CMF importes_exterior 2026-08: actualizado (85 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113889_recurso_1.xlsx?ts=1790772555",
+    "CMF importes_exterior 2026-08: actualizado (48 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113890_recurso_1.xlsx?ts=1790772708",
+    "CMF importes_exterior 2026-07: actualizado (323 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113891_recurso_1.xlsx?ts=1790773005",
+    "CMF importes_exterior 2026-07: actualizado (167 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113892_recurso_1.xlsx?ts=1790773117",
+    "CMF importes_exterior 2026-07: actualizado (100 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-113893_recurso_1.xlsx?ts=1790773277",
+    "CMF importes_exterior 2026-09: actualizado (542 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114567_recurso_1.xlsx?ts=1793359008",
+    "CMF importes_exterior 2026-09: actualizado (169 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114568_recurso_1.xlsx?ts=1793359152",
+    "CMF importes_exterior 2026-09: actualizado (114 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114569_recurso_1.xlsx?ts=1793359316",
+    "CMF importes_exterior 2026-09: actualizado (49 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114570_recurso_1.xlsx?ts=1793359434",
+    "CMF importes_exterior 2026-09: actualizado (41 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114571_recurso_1.xlsx?ts=1793359549",
+    "CMF importes_exterior 2026-09: actualizado (84 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114572_recurso_1.xlsx?ts=1793359665",
+    "CMF importes_exterior 2026-09: actualizado (49 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114573_recurso_1.xlsx?ts=1793359800",
+    "CMF importes_exterior 2026-08: actualizado (324 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114574_recurso_1.xlsx?ts=1793360183",
+    "CMF importes_exterior 2026-08: actualizado (167 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114575_recurso_1.xlsx?ts=1793360329",
+    "CMF importes_exterior 2026-08: actualizado (100 KB) desde https://www.cmfchile.cl/portal/estadisticas/626/articles-114576_recurso_1.xlsx?ts=1793360462",
+    "INE Base promedio año 2018=100/Series mensuales desde enero de 2018 a la fecha: actualizado (372 KB)",
+    "INE Base promedio año 2018=100/Serie mensual empalmada, desestacionalizada y tendencia ciclo desde 2005 hasta la fecha: actualizado (51 KB)",
+    "INE Base promedio año 2018=100/Series empalmadas históricas: actualizado (1650 KB)",
+    "EEFF PARAUCO 2026-09: actualizado (130 KB)",
+    "Razonado PARAUCO 2026-09: actualizado (3164 KB)"
+   ]
+  },
   {
    "fecha": "2026-10-29T17:56:48+00:00",
    "nuevos": {
